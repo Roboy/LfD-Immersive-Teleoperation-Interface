@@ -39,7 +39,7 @@ def main():
 
     expr_name = f'actuator_network_test_{history_len}_{future_len}_{prediction_len}'
     ckpt_dir = f'/scr/tonyzhao/train_logs/{expr_name}' if os.getlogin() == 'tonyzhao' else f'./ckpts/{expr_name}'
-    dataset_dir = '/scr/tonyzhao/compressed_datasets/aloha_mobile_fork/' if os.getlogin() == 'tonyzhao' else '/home/zfu/data/aloha_mobile_fork/'
+    dataset_dir = '/home/justin/Desktop/sim_transfer_cube_scripted'
     #########################################################
     assert(history_len + future_len >= prediction_len)
     assert(future_len % prediction_len == 0)

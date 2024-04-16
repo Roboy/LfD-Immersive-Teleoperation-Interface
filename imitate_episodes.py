@@ -23,6 +23,7 @@ from visualize_episodes import save_videos
 from detr.models.latent_model import Latent_Model_Transformer
 
 from sim_env import BOX_POSE
+os.environ["WANDB_DISABLED"] = "true"
 
 import IPython
 e = IPython.embed
@@ -256,7 +257,7 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
         latent_model_ckpt_path = os.path.join(ckpt_dir, 'latent_model_last.ckpt')
         latent_model.deserialize(torch.load(latent_model_ckpt_path))
         latent_model.eval()
-        latent_model.cuda()
+        latent_model.cpu()
         print(f'Loaded policy from: {ckpt_path}, latent model from: {latent_model_ckpt_path}')
     else:
         print(f'Loaded: {ckpt_path}')
@@ -323,6 +324,8 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
         ### set task
         if 'sim_transfer_cube' in task_name:
             BOX_POSE[0] = sample_box_pose() # used in sim reset
+        elif 'sim_lift_cube' in task_name:
+            BOX_POSE[0] = sample_box_pose() # used in sim reset
         elif 'sim_insertion' in task_name:
             BOX_POSE[0] = np.concatenate(sample_insertion_pose()) # used in sim reset
 
@@ -336,7 +339,7 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
 
         ### evaluation loop
         if temporal_agg:
-            all_time_actions = torch.zeros([max_timesteps, max_timesteps+num_queries, 16]).cuda()
+            all_time_actions = torch.zeros([max_timesteps, max_timesteps+num_queries, 16]).cpu()
 
         # qpos_history = torch.zeros((1, max_timesteps, state_dim)).cuda()
         qpos_history_raw = np.zeros((max_timesteps, state_dim))

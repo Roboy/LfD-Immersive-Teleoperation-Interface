@@ -143,7 +143,7 @@ class DETRVAE(nn.Module):
 
         return latent_input, probs, binaries, mu, logvar
 
-    def forward(self, qpos, image, env_state, actions=None, is_pad=None, vq_sample=None):
+    def forward(self, qpos, image, env_state, actions=None, is_pad=None, vq_sample=None, pos=None):
         """
         qpos: batch, qpos_dim
         image: batch, num_cam, channel, height, width
@@ -280,9 +280,11 @@ def build(args):
     transformer = build_transformer(args)
 
     if args.no_encoder:
+        print("NO ENCODER USED")
         encoder = None
     else:
-        encoder = build_transformer(args)
+        print("ENCODER USED")
+        encoder = build_encoder(args)
 
     model = DETRVAE(
         backbones,

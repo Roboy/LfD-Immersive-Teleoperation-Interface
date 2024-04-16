@@ -8,7 +8,7 @@ import h5py
 from constants import PUPPET_GRIPPER_POSITION_NORMALIZE_FN, SIM_TASK_CONFIGS
 from ee_sim_env import make_ee_sim_env
 from sim_env import make_sim_env, BOX_POSE
-from scripted_policy import PickAndTransferPolicy, InsertionPolicy
+from scripted_policy import PickAndTransferPolicy, InsertionPolicy, LiftPolicy
 
 import IPython
 e = IPython.embed
@@ -39,6 +39,8 @@ def main(args):
         policy_cls = PickAndTransferPolicy
     elif task_name == 'sim_insertion_scripted':
         policy_cls = InsertionPolicy
+    elif task_name == 'sim_lift_cube_scripted':
+        policy_cls = LiftPolicy
     elif task_name == 'sim_transfer_cube_scripted_mirror':
         policy_cls = PickAndTransferPolicy
     else:
@@ -77,18 +79,24 @@ def main(args):
         joint_traj = [ts.observation['qpos'] for ts in episode]
         # replace gripper pose with gripper control
         gripper_ctrl_traj = [ts.observation['gripper_ctrl'] for ts in episode]
-        for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
-            left_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
-            right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[2])
-            joint[6] = left_ctrl
-            joint[6+7] = right_ctrl
+
+        if policy_cls == LiftPolicy:
+            for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
+                right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
+                joint[6] = right_ctrl
+        else:
+            print("entered")
+            for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
+                left_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
+                right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[2])
+                joint[6] = left_ctrl
+                joint[6+7] = right_ctrl
 
         subtask_info = episode[0].observation['env_state'].copy() # box pose at step 0
 
         # clear unused variables
         del env
         del episode
-        del policy
 
         # setup the environment
         print('Replaying joint commands')
@@ -169,9 +177,16 @@ def main(args):
                                          chunks=(1, 480, 640, 3), )
             # compression='gzip',compression_opts=2,)
             # compression=32001, compression_opts=(0, 0, 0, 0, 9, 1, 1), shuffle=False)
-            qpos = obs.create_dataset('qpos', (max_timesteps, 14))
-            qvel = obs.create_dataset('qvel', (max_timesteps, 14))
-            action = root.create_dataset('action', (max_timesteps, 14))
+
+            # TODO wurde von 14 auf 7 verringert für einen arm
+            if policy_cls == LiftPolicy:
+                qpos = obs.create_dataset('qpos', (max_timesteps, 7))
+                qvel = obs.create_dataset('qvel', (max_timesteps, 7))
+                action = root.create_dataset('action', (max_timesteps, 7))
+            else:
+                qpos = obs.create_dataset('qpos', (max_timesteps, 14))
+                qvel = obs.create_dataset('qvel', (max_timesteps, 14))
+                action = root.create_dataset('action', (max_timesteps, 14))
 
             for name, array in data_dict.items():
                 root[name][...] = array

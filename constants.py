@@ -2,13 +2,21 @@ import pathlib
 import os
 
 ### Task parameters
-DATA_DIR = '/home/zfu/interbotix_ws/src/act/data' if os.getlogin() == 'zfu' else '/scr/tonyzhao/datasets'
+#Abänderung zu meinem Verzeichnis in dem die Episoden liegen
+DATA_DIR = '/home/justin/Desktop'
 SIM_TASK_CONFIGS = {
     'sim_transfer_cube_scripted':{
         'dataset_dir': DATA_DIR + '/sim_transfer_cube_scripted',
         'num_episodes': 50,
         'episode_len': 400,
         'camera_names': ['top', 'left_wrist', 'right_wrist']
+    },
+    
+    'sim_lift_cube_scripted':{
+        'dataset_dir': DATA_DIR + '/sim_lift_cube_scripted',
+        'num_episodes': 50,
+        'episode_len': 400,
+        'camera_names': ['top', 'right_wrist']
     },
 
     'sim_transfer_cube_human':{
@@ -60,6 +68,8 @@ DT = 0.02
 FPS = 50
 JOINT_NAMES = ["waist", "shoulder", "elbow", "forearm_roll", "wrist_angle", "wrist_rotate"]
 START_ARM_POSE = [0, -0.96, 1.16, 0, -0.3, 0, 0.02239, -0.02239,  0, -0.96, 1.16, 0, -0.3, 0, 0.02239, -0.02239]
+SINGLE_START_ARM_POSE = [0, -0.96, 1.16, 0, -0.3, 0, 0.02239, -0.02239]
+
 
 XML_DIR = str(pathlib.Path(__file__).parent.resolve()) + '/assets/' # note: absolute path
 
