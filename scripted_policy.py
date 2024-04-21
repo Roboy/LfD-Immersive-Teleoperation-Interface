@@ -127,7 +127,7 @@ class PickAndTransferPolicy(BasePolicy):
         gripper_pick_quat = gripper_pick_quat * Quaternion(axis=[0.0, 1.0, 0.0], degrees=-60)
 
         meet_left_quat = Quaternion(axis=[1.0, 0.0, 0.0], degrees=90)
-
+        
         meet_xyz = np.array([0, 0.5, 0.25])
 
         self.left_trajectory = [
@@ -150,6 +150,7 @@ class PickAndTransferPolicy(BasePolicy):
             {"t": 360, "xyz": meet_xyz + np.array([0.1, 0, 0]), "quat": gripper_pick_quat.elements, "gripper": 1}, # move to right
             {"t": 400, "xyz": meet_xyz + np.array([0.1, 0, 0]), "quat": gripper_pick_quat.elements, "gripper": 1}, # stay
         ]
+
 
 
 class LiftPolicy(SinglePolicy):
