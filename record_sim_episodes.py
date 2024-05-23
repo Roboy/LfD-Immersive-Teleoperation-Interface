@@ -8,7 +8,7 @@ import h5py
 from constants import PUPPET_GRIPPER_POSITION_NORMALIZE_FN, SIM_TASK_CONFIGS
 from ee_sim_env import make_ee_sim_env
 from sim_env import make_sim_env, BOX_POSE
-from scripted_policy import PickAndTransferPolicy, InsertionPolicy, LiftPolicy
+from scripted_policy import PickAndTransferPolicy, InsertionPolicy, PickPolicy
 
 import IPython
 e = IPython.embed
@@ -28,7 +28,10 @@ def main(args):
     num_episodes = args['num_episodes']
     onscreen_render = args['onscreen_render']
     inject_noise = False
-    render_cam_name = 'top'
+    first_cam = 'right_eye'
+    second_cam = 'left_eye'
+
+
 
     if not os.path.isdir(dataset_dir):
         os.makedirs(dataset_dir, exist_ok=True)
@@ -40,7 +43,7 @@ def main(args):
     elif task_name == 'sim_insertion_scripted':
         policy_cls = InsertionPolicy
     elif task_name == 'sim_lift_cube_scripted':
-        policy_cls = LiftPolicy
+        policy_cls = PickPolicy
     elif task_name == 'sim_transfer_cube_scripted_mirror':
         policy_cls = PickAndTransferPolicy
     else:
@@ -57,15 +60,17 @@ def main(args):
         policy = policy_cls(inject_noise)
         # setup plotting
         if onscreen_render:
-            ax = plt.subplot()
-            plt_img = ax.imshow(ts.observation['images'][render_cam_name])
+            fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))  # 1 Zeile, 2 Spalten
+            first_plt_img = ax.imshow(ts.observation['images'][first_cam])
+            sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
             plt.ion()
         for step in range(episode_len):
             action = policy(ts)
             ts = env.step(action)
             episode.append(ts)
             if onscreen_render:
-                plt_img.set_data(ts.observation['images'][render_cam_name])
+                first_plt_img.set_data(ts.observation['images'][first_cam])
+                sec_plt_img.set_data(ts.observation['images'][second_cam])
                 plt.pause(0.002)
         plt.close()
 
@@ -79,24 +84,18 @@ def main(args):
         joint_traj = [ts.observation['qpos'] for ts in episode]
         # replace gripper pose with gripper control
         gripper_ctrl_traj = [ts.observation['gripper_ctrl'] for ts in episode]
-
-        if policy_cls == LiftPolicy:
-            for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
-                right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
-                joint[6] = right_ctrl
-        else:
-            print("entered")
-            for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
-                left_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
-                right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[2])
-                joint[6] = left_ctrl
-                joint[6+7] = right_ctrl
+        for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
+            left_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
+            right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[2])
+            joint[6] = left_ctrl
+            joint[6+7] = right_ctrl
 
         subtask_info = episode[0].observation['env_state'].copy() # box pose at step 0
 
         # clear unused variables
         del env
         del episode
+        del policy
 
         # setup the environment
         print('Replaying joint commands')
@@ -107,16 +106,18 @@ def main(args):
         episode_replay = [ts]
         # setup plotting
         if onscreen_render:
-            ax = plt.subplot()
-            plt_img = ax.imshow(ts.observation['images'][render_cam_name])
+            fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))  # 1 Zeile, 2 Spalten
+            first_plt_img = ax.imshow(ts.observation['images'][first_cam])
+            sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
             plt.ion()
         for t in range(len(joint_traj)): # note: this will increase episode length by 1
             action = joint_traj[t]
             ts = env.step(action)
             episode_replay.append(ts)
             if onscreen_render:
-                plt_img.set_data(ts.observation['images'][render_cam_name])
-                plt.pause(0.02)
+                first_plt_img.set_data(ts.observation['images'][first_cam])
+                sec_plt_img.set_data(ts.observation['images'][second_cam])
+                plt.pause(0.002)
 
         episode_return = np.sum([ts.reward for ts in episode_replay[1:]])
         episode_max_reward = np.max([ts.reward for ts in episode_replay[1:]])
@@ -177,16 +178,9 @@ def main(args):
                                          chunks=(1, 480, 640, 3), )
             # compression='gzip',compression_opts=2,)
             # compression=32001, compression_opts=(0, 0, 0, 0, 9, 1, 1), shuffle=False)
-
-            # TODO wurde von 14 auf 7 verringert für einen arm
-            if policy_cls == LiftPolicy:
-                qpos = obs.create_dataset('qpos', (max_timesteps, 7))
-                qvel = obs.create_dataset('qvel', (max_timesteps, 7))
-                action = root.create_dataset('action', (max_timesteps, 7))
-            else:
-                qpos = obs.create_dataset('qpos', (max_timesteps, 14))
-                qvel = obs.create_dataset('qvel', (max_timesteps, 14))
-                action = root.create_dataset('action', (max_timesteps, 14))
+            qpos = obs.create_dataset('qpos', (max_timesteps, 14))
+            qvel = obs.create_dataset('qvel', (max_timesteps, 14))
+            action = root.create_dataset('action', (max_timesteps, 14))
 
             for name, array in data_dict.items():
                 root[name][...] = array
@@ -203,4 +197,3 @@ if __name__ == '__main__':
     parser.add_argument('--onscreen_render', action='store_true')
     
     main(vars(parser.parse_args()))
-

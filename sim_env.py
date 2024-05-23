@@ -113,9 +113,8 @@ class BimanualViperXTask(base.Task):
         obs['qvel'] = self.get_qvel(physics)
         obs['env_state'] = self.get_env_state(physics)
         obs['images'] = dict()
-        obs['images']['top'] = physics.render(height=480, width=640, camera_id='top')
-        obs['images']['left_wrist'] = physics.render(height=480, width=640, camera_id='left_wrist')
-        obs['images']['right_wrist'] = physics.render(height=480, width=640, camera_id='right_wrist')
+        obs['images']['left_eye'] = physics.render(height=480, width=640, camera_id='left_eye')
+        obs['images']['right_eye'] = physics.render(height=480, width=640, camera_id='right_eye')
         # obs['images']['angle'] = physics.render(height=480, width=640, camera_id='angle')
         # obs['images']['vis'] = physics.render(height=480, width=640, camera_id='front_close')
 

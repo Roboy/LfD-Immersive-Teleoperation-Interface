@@ -3,6 +3,7 @@
 
     <asset>
         <mesh file="tabletop.stl" name="tabletop" scale="0.001 0.001 0.001"/>
+        <mesh name="base_mesh" file="base.stl" scale="0.001 0.001 0.001"/>
     </asset>
 
     <visual>
@@ -18,7 +19,11 @@
         <light castshadow="false" directional='true' diffuse='.3 .3 .3' specular='0.3 0.3 0.3' pos='0 1 1'
                dir='0 -1 -1'/>
 
-        <body name="table" pos="0 .6 0">
+        <!--    <body name="base" pos="0 0.3 -0.2">
+            <geom group="1" mesh="base_mesh" pos="0 0 0" type="mesh" conaffinity="1" contype="1" name="base_mesh" rgba="0.2 0.2 0.2 1" />
+        </body> -->
+
+        <body name="table" pos="0 .6 0.1">
             <geom group="1" mesh="tabletop" pos="0 0 0" type="mesh" conaffinity="1" contype="1" name="table" rgba="0.2 0.2 0.2 1" />
         </body>
         <body name="midair" pos="0 .6 0.2">
@@ -26,13 +31,15 @@
         </body>
 
         <camera name="left_pillar" pos="-0.5 0.2 0.6" fovy="78" mode="targetbody" target="table"/>
-        <camera name="right_pillar" pos="0.5 0.2 0.6" fovy="78" mode="targetbody" target="table"/>
-        <camera name="top" pos="0 0.4 0.4" fovy="78" mode="targetbody" target="table"/>
+        <camera name="right_pillar" pos="0.5 0.8 1.2" fovy="78" mode="targetbody" target="table"/>
+        <camera name="left_eye" pos="-0.03 0.5 1.12" fovy="78" mode="targetbody" target="table"/>
+        <camera name="right_eye" pos="0.03 0.5 1.12" fovy="78" mode="targetbody" target="table"/>
+        <!--    <camera name="right_eye" pos="0.03 0.5 1.12" fovy="78" mode="targetbody" target="table"/>/>-->
+        <camera name="top" pos="0 -0.2 0.3" fovy="78" mode="targetbody" target="table"/>
         <camera name="angle" pos="0 0 0.6" fovy="78" mode="targetbody" target="table"/>
-        <camera name="front_close" pos="0 0.2 0.4" fovy="78" mode="targetbody" target="vx300s_right/camera_focus"/>
+        <camera name="front_close" pos="0 0.2 0.4" fovy="78" mode="targetbody" target="vx300s_left/camera_focus"/>
 
     </worldbody>
-
 
 
 </mujocoinclude>
