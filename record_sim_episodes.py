@@ -10,9 +10,9 @@ from ee_sim_env import make_ee_sim_env
 from sim_env import make_sim_env, BOX_POSE
 from scripted_policy import PickAndTransferPolicy, InsertionPolicy, PickPolicy
 
+
 import IPython
 e = IPython.embed
-
 
 def main(args):
     """
@@ -23,13 +23,14 @@ def main(args):
     Save this episode of data, and continue to next episode of data collection.
     """
 
+    
     task_name = args['task_name']
     dataset_dir = args['dataset_dir']
     num_episodes = args['num_episodes']
     onscreen_render = args['onscreen_render']
     inject_noise = False
-    first_cam = 'right_eye'
-    second_cam = 'left_eye'
+    first_cam = 'left_eye'
+    second_cam = 'right_eye'
 
 
 
@@ -55,7 +56,9 @@ def main(args):
         print('Rollout out EE space scripted policy')
         # setup the environment
         env = make_ee_sim_env(task_name)
+        # This method resets the environment to its initial state and returns the first TimeStep.
         ts = env.reset()
+
         episode = [ts]
         policy = policy_cls(inject_noise)
         # setup plotting
@@ -64,6 +67,12 @@ def main(args):
             first_plt_img = ax.imshow(ts.observation['images'][first_cam])
             sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
             plt.ion()
+
+        '''
+        Here, a new timestep is generated on each iteration of the loop by calling env.step(action). 
+        The result (ts) is appended to the episode list.
+        '''
+
         for step in range(episode_len):
             action = policy(ts)
             ts = env.step(action)
@@ -188,6 +197,10 @@ def main(args):
 
     print(f'Saved to {dataset_dir}')
     print(f'Success: {np.sum(success)} / {len(success)}')
+
+    task_name.close_subscriber()
+    
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

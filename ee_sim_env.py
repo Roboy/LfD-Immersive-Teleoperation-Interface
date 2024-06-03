@@ -12,9 +12,21 @@ from utils import sample_box_pose, sample_insertion_pose
 from dm_control import mujoco
 from dm_control.rl import control
 from dm_control.suite import base
+import threading
+
 
 import IPython
 e = IPython.embed
+
+import rclpy
+from ros2_subscriber import SingletonSubscriber
+
+def ros_spin():
+    rclpy.init()
+    subscriber_node = SingletonSubscriber.get_instance()
+    rclpy.spin(subscriber_node)
+    subscriber_node.destroy_node()
+    rclpy.shutdown()
 
 
 def make_ee_sim_env(task_name):
@@ -57,9 +69,89 @@ def make_ee_sim_env(task_name):
         raise NotImplementedError
     return env
 
+def quat_slerp(q1, q2, t):
+    """Perform spherical linear interpolation between two quaternions."""
+    dot = np.dot(q1, q2)
+    if dot < 0.0:
+        q1 = -q1
+        dot = -dot
+
+    DOT_THRESHOLD = 0.9995
+    if dot > DOT_THRESHOLD:
+        result = q1 + t * (q2 - q1)
+        result /= np.linalg.norm(result)
+        return result
+
+    theta_0 = np.arccos(dot)
+    theta = theta_0 * t
+    sin_theta = np.sin(theta)
+    sin_theta_0 = np.sin(theta_0)
+
+    s1 = np.cos(theta) - dot * sin_theta / sin_theta_0
+    s2 = sin_theta / sin_theta_0
+
+    return (s1 * q1) + (s2 * q2)
+
+def quat_to_mat(q):
+    """Convert a quaternion to a 3x3 rotation matrix."""
+    w, x, y, z = q
+    return np.array([
+        [1 - 2*y**2 - 2*z**2, 2*x*y - 2*z*w, 2*x*z + 2*y*w],
+        [2*x*y + 2*z*w, 1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
+        [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]
+    ])
+
+def get_interpolated_matrix(counter):
+    initial_quat = np.array([0.9877, 0.1564, 0, 0])
+    target_quat = np.array([1, 0, 0, 0])
+    
+    if counter > 100:
+        return quat_to_mat(target_quat)
+    
+    t = counter / 100.0
+    interpolated_quat = quat_slerp(initial_quat, target_quat, t)
+    return quat_to_mat(interpolated_quat)
+
 class BimanualViperXEETask(base.Task):
     def __init__(self, random=None):
+        self.counter = 0
+        self.ros_thread = threading.Thread(target=ros_spin)
+        self.ros_thread.start()
+        self.subscriber_instance = SingletonSubscriber.get_instance()
         super().__init__(random=random)
+
+    def close_subscriber(self):
+        self.ros_thread.join()
+
+    def mat2quat(self, mat):
+        """Convert a 3x3 rotation matrix to a quaternion."""
+        trace = np.trace(mat)
+        if trace > 0:
+            s = 0.5 / np.sqrt(trace + 1.0)
+            w = 0.25 / s
+            x = (mat[2, 1] - mat[1, 2]) * s
+            y = (mat[0, 2] - mat[2, 0]) * s
+            z = (mat[1, 0] - mat[0, 1]) * s
+        else:
+            if (mat[0, 0] > mat[1, 1]) and (mat[0, 0] > mat[2, 2]):
+                s = 2.0 * np.sqrt(1.0 + mat[0, 0] - mat[1, 1] - mat[2, 2])
+                w = (mat[2, 1] - mat[1, 2]) / s
+                x = 0.25 * s
+                y = (mat[0, 1] + mat[1, 0]) / s
+                z = (mat[0, 2] + mat[2, 0]) / s
+            elif mat[1, 1] > mat[2, 2]:
+                s = 2.0 * np.sqrt(1.0 + mat[1, 1] - mat[0, 0] - mat[2, 2])
+                w = (mat[0, 2] - mat[2, 0]) / s
+                x = (mat[0, 1] + mat[1, 0]) / s
+                y = 0.25 * s
+                z = (mat[1, 2] + mat[2, 1]) / s
+            else:
+                s = 2.0 * np.sqrt(1.0 + mat[2, 2] - mat[0, 0] - mat[1, 1])
+                w = (mat[1, 0] - mat[0, 1]) / s
+                x = (mat[0, 2] + mat[2, 0]) / s
+                y = (mat[1, 2] + mat[2, 1]) / s
+                z = 0.25 * s
+        return np.array([w, x, y, z])
 
     def before_step(self, action, physics):
         a_len = len(action) // 2
@@ -106,6 +198,7 @@ class BimanualViperXEETask(base.Task):
 
     def initialize_episode(self, physics):
         """Sets the state of the environment at the start of each episode."""
+        self.counter = 0
         super().initialize_episode(physics)
 
     @staticmethod
@@ -134,6 +227,24 @@ class BimanualViperXEETask(base.Task):
     def get_env_state(physics):
         raise NotImplementedError
 
+    def euler_to_rotation_matrix(self, roll, pitch, yaw):
+        # Compute the rotation matrix from Euler angles (roll, pitch, yaw)
+        Rx = np.array([[1, 0, 0],
+                   [0, np.cos(roll), -np.sin(roll)],
+                   [0, np.sin(roll), np.cos(roll)]])
+    
+        Ry = np.array([[np.cos(pitch), 0, np.sin(pitch)],
+                   [0, 1, 0],
+                   [-np.sin(pitch), 0, np.cos(pitch)]])
+    
+        Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+                   [np.sin(yaw), np.cos(yaw), 0],
+                   [0, 0, 1]])
+    
+        # Combined rotation matrix
+        R = Rz @ Ry @ Rx
+        return R
+
     def get_observation(self, physics):
         # note: it is important to do .copy()
         obs = collections.OrderedDict()
@@ -141,6 +252,35 @@ class BimanualViperXEETask(base.Task):
         obs['qvel'] = self.get_qvel(physics)
         obs['env_state'] = self.get_env_state(physics)
         obs['images'] = dict()
+    
+        left_eye_id = physics.model.name2id('left_eye', 'camera')
+        right_eye_id = physics.model.name2id('right_eye', 'camera')
+
+
+        latest_message = self.subscriber_instance.get_latest_message()
+        if latest_message:
+            roll = latest_message.pose.position.x
+            pitch = latest_message.pose.position.y
+            yaw = latest_message.pose.position.z
+            #print(f"Latest message - roll: {roll}, pitch: {pitch}, yaw: {yaw}")
+
+            # Calculate the rotation matrix
+            mat = self.euler_to_rotation_matrix(roll, pitch, yaw)
+        
+            # Flatten the matrix to fit into MuJoCo's cam_xmat format
+            mat_flat = mat.flatten()
+            np.copyto(physics.data.cam_xmat[left_eye_id], mat_flat)
+            np.copyto(physics.data.cam_xmat[right_eye_id], mat_flat)
+
+        
+            rotation_matrix = physics.data.cam_xmat[left_eye_id].reshape(3, 3)
+        
+            # Convert the rotation matrix to a quaternion
+            # camera_quat = self.mat2quat(rotation_matrix)
+            # print("Quaternion of left_eye camera in ee_sim_env:", camera_quat)
+        #else:
+            #print("No message received yet.")
+
         obs['images']['left_eye'] = physics.render(height=480, width=640, camera_id='left_eye')
         obs['images']['right_eye'] = physics.render(height=480, width=640, camera_id='right_eye')
         # obs['images']['angle'] = physics.render(height=480, width=640, camera_id='angle')
@@ -284,6 +424,7 @@ class TransferCubeEETask(BimanualViperXEETask):
         if touch_left_gripper and not touch_table: # successful transfer
             reward = 4
         return reward
+
 
 
 class LiftCubeEETask(SingleViperXEETask):
