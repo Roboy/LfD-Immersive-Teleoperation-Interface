@@ -14,7 +14,37 @@ from scripted_policy import PickAndTransferPolicy, InsertionPolicy, PickPolicy
 import IPython
 e = IPython.embed
 
+import threading
+import rclpy
+from ros2_subscriber import SingletonSubscriber
+
+ros_shutdown_flag = False
+
+
+def ros_spin():
+    global ros_shutdown_flag
+    rclpy.init()
+    subscriber_node = SingletonSubscriber.get_instance()
+    try:
+        while rclpy.ok() and not ros_shutdown_flag:
+            rclpy.spin_once(subscriber_node, timeout_sec=1.0)
+    finally:
+        print("Shutting down ROS node")
+        subscriber_node.destroy_node()
+        rclpy.shutdown()
+        print("ROS node destroyed and shutdown completed")
+
+def ros_kill():
+    global ros_shutdown_flag
+    print("Setting shutdown flag")
+    ros_shutdown_flag = True
+
 def main(args):
+    global ros_shutdown_flag
+
+    ros_thread = threading.Thread(target=ros_spin)
+    ros_thread.start()
+    subscriber_instance = SingletonSubscriber.get_instance()
     """
     Generate demonstration data in simulation.
     First rollout the policy (defined in ee space) in ee_sim_env. Obtain the joint trajectory.
@@ -57,7 +87,7 @@ def main(args):
         # setup the environment
         env = make_ee_sim_env(task_name)
         # This method resets the environment to its initial state and returns the first TimeStep.
-        ts = env.reset()
+        ts = env.reset(subscriber_instance)
 
         episode = [ts]
         policy = policy_cls(inject_noise)
@@ -75,7 +105,7 @@ def main(args):
 
         for step in range(episode_len):
             action = policy(ts)
-            ts = env.step(action)
+            ts = env.step(action, subscriber_instance)
             episode.append(ts)
             if onscreen_render:
                 first_plt_img.set_data(ts.observation['images'][first_cam])
@@ -110,7 +140,7 @@ def main(args):
         print('Replaying joint commands')
         env = make_sim_env(task_name)
         BOX_POSE[0] = subtask_info # make sure the sim_env has the same object configurations as ee_sim_env
-        ts = env.reset()
+        ts = env.reset(subscriber_instance)
 
         episode_replay = [ts]
         # setup plotting
@@ -121,7 +151,7 @@ def main(args):
             plt.ion()
         for t in range(len(joint_traj)): # note: this will increase episode length by 1
             action = joint_traj[t]
-            ts = env.step(action)
+            ts = env.step(action, subscriber_instance)
             episode_replay.append(ts)
             if onscreen_render:
                 first_plt_img.set_data(ts.observation['images'][first_cam])
@@ -197,8 +227,10 @@ def main(args):
 
     print(f'Saved to {dataset_dir}')
     print(f'Success: {np.sum(success)} / {len(success)}')
-
-    task_name.close_subscriber()
+    
+    ros_kill()  # Signal the ROS node to shut down
+    ros_thread.join()  # Wait for the ROS thread to terminate
+    print("ROS thread finished")
     
     
 

@@ -18,17 +18,6 @@ import threading
 import IPython
 e = IPython.embed
 
-import rclpy
-from ros2_subscriber import SingletonSubscriber
-
-def ros_spin():
-    rclpy.init()
-    subscriber_node = SingletonSubscriber.get_instance()
-    rclpy.spin(subscriber_node)
-    subscriber_node.destroy_node()
-    rclpy.shutdown()
-
-
 def make_ee_sim_env(task_name):
     """
     Environment for simulated robot bi-manual manipulation, with end-effector control.
@@ -101,57 +90,9 @@ def quat_to_mat(q):
         [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]
     ])
 
-def get_interpolated_matrix(counter):
-    initial_quat = np.array([0.9877, 0.1564, 0, 0])
-    target_quat = np.array([1, 0, 0, 0])
-    
-    if counter > 100:
-        return quat_to_mat(target_quat)
-    
-    t = counter / 100.0
-    interpolated_quat = quat_slerp(initial_quat, target_quat, t)
-    return quat_to_mat(interpolated_quat)
-
 class BimanualViperXEETask(base.Task):
     def __init__(self, random=None):
-        self.counter = 0
-        self.ros_thread = threading.Thread(target=ros_spin)
-        self.ros_thread.start()
-        self.subscriber_instance = SingletonSubscriber.get_instance()
         super().__init__(random=random)
-
-    def close_subscriber(self):
-        self.ros_thread.join()
-
-    def mat2quat(self, mat):
-        """Convert a 3x3 rotation matrix to a quaternion."""
-        trace = np.trace(mat)
-        if trace > 0:
-            s = 0.5 / np.sqrt(trace + 1.0)
-            w = 0.25 / s
-            x = (mat[2, 1] - mat[1, 2]) * s
-            y = (mat[0, 2] - mat[2, 0]) * s
-            z = (mat[1, 0] - mat[0, 1]) * s
-        else:
-            if (mat[0, 0] > mat[1, 1]) and (mat[0, 0] > mat[2, 2]):
-                s = 2.0 * np.sqrt(1.0 + mat[0, 0] - mat[1, 1] - mat[2, 2])
-                w = (mat[2, 1] - mat[1, 2]) / s
-                x = 0.25 * s
-                y = (mat[0, 1] + mat[1, 0]) / s
-                z = (mat[0, 2] + mat[2, 0]) / s
-            elif mat[1, 1] > mat[2, 2]:
-                s = 2.0 * np.sqrt(1.0 + mat[1, 1] - mat[0, 0] - mat[2, 2])
-                w = (mat[0, 2] - mat[2, 0]) / s
-                x = (mat[0, 1] + mat[1, 0]) / s
-                y = 0.25 * s
-                z = (mat[1, 2] + mat[2, 1]) / s
-            else:
-                s = 2.0 * np.sqrt(1.0 + mat[2, 2] - mat[0, 0] - mat[1, 1])
-                w = (mat[1, 0] - mat[0, 1]) / s
-                x = (mat[0, 2] + mat[2, 0]) / s
-                y = (mat[1, 2] + mat[2, 1]) / s
-                z = 0.25 * s
-        return np.array([w, x, y, z])
 
     def before_step(self, action, physics):
         a_len = len(action) // 2
@@ -245,7 +186,7 @@ class BimanualViperXEETask(base.Task):
         R = Rz @ Ry @ Rx
         return R
 
-    def get_observation(self, physics):
+    def get_observation(self, physics, subscriber_instance):
         # note: it is important to do .copy()
         obs = collections.OrderedDict()
         obs['qpos'] = self.get_qpos(physics)
@@ -257,7 +198,7 @@ class BimanualViperXEETask(base.Task):
         right_eye_id = physics.model.name2id('right_eye', 'camera')
 
 
-        latest_message = self.subscriber_instance.get_latest_message()
+        latest_message = subscriber_instance.get_latest_message()
         if latest_message:
             roll = latest_message.pose.position.x
             pitch = latest_message.pose.position.y
@@ -271,15 +212,6 @@ class BimanualViperXEETask(base.Task):
             mat_flat = mat.flatten()
             np.copyto(physics.data.cam_xmat[left_eye_id], mat_flat)
             np.copyto(physics.data.cam_xmat[right_eye_id], mat_flat)
-
-        
-            rotation_matrix = physics.data.cam_xmat[left_eye_id].reshape(3, 3)
-        
-            # Convert the rotation matrix to a quaternion
-            # camera_quat = self.mat2quat(rotation_matrix)
-            # print("Quaternion of left_eye camera in ee_sim_env:", camera_quat)
-        #else:
-            #print("No message received yet.")
 
         obs['images']['left_eye'] = physics.render(height=480, width=640, camera_id='left_eye')
         obs['images']['right_eye'] = physics.render(height=480, width=640, camera_id='right_eye')
