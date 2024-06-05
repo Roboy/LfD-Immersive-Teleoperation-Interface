@@ -8,7 +8,7 @@ import h5py
 from constants import PUPPET_GRIPPER_POSITION_NORMALIZE_FN, SIM_TASK_CONFIGS
 from ee_sim_env import make_ee_sim_env
 from sim_env import make_sim_env, BOX_POSE
-from scripted_policy import PickAndTransferPolicy, InsertionPolicy, PickPolicy
+from scripted_policy import BasePolicy
 import cv2
 
 from ros2_headset_pos_subscriber import HeadsetSubscriber
@@ -107,16 +107,11 @@ def main(args):
 
     episode_len = SIM_TASK_CONFIGS[task_name]['episode_len']
     camera_names = SIM_TASK_CONFIGS[task_name]['camera_names']
-    if task_name == 'sim_transfer_cube_scripted':
-        policy_cls = PickAndTransferPolicy
-    elif task_name == 'sim_insertion_scripted':
-        policy_cls = InsertionPolicy
-    elif task_name == 'sim_lift_cube_scripted':
-        policy_cls = PickPolicy
-    elif task_name == 'sim_transfer_cube_scripted_mirror':
-        policy_cls = PickAndTransferPolicy
-    else:
-        raise NotImplementedError
+    try:
+        policy = BasePolicy(shared_state.left_pose_subscriber, shared_state.right_pose_subscriber, inject_noise)
+    except Exception as e:
+        print(f"Error initializing policy: {e}")
+        return
 
     success = []
     for episode_idx in range(num_episodes):
@@ -128,7 +123,8 @@ def main(args):
         ts = env.reset(shared_state.headset_subscriber)
 
         episode = [ts]
-        policy = policy_cls(inject_noise)
+        policy = BasePolicy(shared_state.left_pose_subscriber, shared_state.right_pose_subscriber, inject_noise)
+
         # setup plotting
         if onscreen_render:
             fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))  # 1 Zeile, 2 Spalten

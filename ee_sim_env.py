@@ -197,21 +197,21 @@ class BimanualViperXEETask(base.Task):
         left_eye_id = physics.model.name2id('left_eye', 'camera')
         right_eye_id = physics.model.name2id('right_eye', 'camera')
 
+        if subscriber_instance != None:
+          latest_message = subscriber_instance.get_latest_message()
+          if latest_message:
+              roll = latest_message.pose.position.x
+              pitch = latest_message.pose.position.y
+              yaw = latest_message.pose.position.z
+              #print(f"Latest message - roll: {roll}, pitch: {pitch}, yaw: {yaw}")
 
-        latest_message = subscriber_instance.get_latest_message()
-        if latest_message:
-            roll = latest_message.pose.position.x
-            pitch = latest_message.pose.position.y
-            yaw = latest_message.pose.position.z
-            #print(f"Latest message - roll: {roll}, pitch: {pitch}, yaw: {yaw}")
-
-            # Calculate the rotation matrix
-            mat = self.euler_to_rotation_matrix(roll, pitch, yaw)
+              # Calculate the rotation matrix
+              mat = self.euler_to_rotation_matrix(roll, pitch, yaw)
         
-            # Flatten the matrix to fit into MuJoCo's cam_xmat format
-            mat_flat = mat.flatten()
-            np.copyto(physics.data.cam_xmat[left_eye_id], mat_flat)
-            np.copyto(physics.data.cam_xmat[right_eye_id], mat_flat)
+              # Flatten the matrix to fit into MuJoCo's cam_xmat format
+              mat_flat = mat.flatten()
+              np.copyto(physics.data.cam_xmat[left_eye_id], mat_flat)
+              np.copyto(physics.data.cam_xmat[right_eye_id], mat_flat)
 
         obs['images']['left_eye'] = physics.render(height=480, width=640, camera_id='left_eye')
         obs['images']['right_eye'] = physics.render(height=480, width=640, camera_id='right_eye')

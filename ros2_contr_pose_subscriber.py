@@ -12,8 +12,6 @@ class PoseSubscriber(Node):
         self.relative_trajectory = []
 
     def pose_callback(self, msg):
-        # Print the received message
-        print(f"Received message")
 
         current_pose = np.array([msg.position.x, msg.position.y, msg.position.z,
                                  msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])

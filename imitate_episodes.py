@@ -329,7 +329,7 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
         elif 'sim_insertion' in task_name:
             BOX_POSE[0] = np.concatenate(sample_insertion_pose()) # used in sim reset
 
-        ts = env.reset()
+        ts = env.reset(None)
 
         ### onscreen render
         if onscreen_render:
@@ -460,7 +460,7 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
                 if real_robot:
                     ts = env.step(target_qpos, base_action)
                 else:
-                    ts = env.step(target_qpos)
+                    ts = env.step(target_qpos, None)
                 # print('step env: ', time.time() - time5)
 
                 ### for visualization
