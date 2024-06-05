@@ -4,6 +4,7 @@ from pyquaternion import Quaternion
 
 from constants import SIM_TASK_CONFIGS
 from ee_sim_env import make_ee_sim_env
+from scipy.spatial.transform import Rotation as R
 
 import IPython
 e = IPython.embed
@@ -11,49 +12,14 @@ e = IPython.embed
 
 class BasePolicy:
     def __init__(self, left_pose_subscriber, right_pose_subscriber, inject_noise=False):
-        self.left_pose_subscriber = left_pose_subscriber
-        self.right_pose_subscriber = right_pose_subscriber
-        self.inject_noise = inject_noise
+        self.left_subscriber = left_pose_subscriber
+        self.right_subscriber = left_pose_subscriber
+        self.curr_left_waypoint = None
+        self.curr_right_waypoint = None
         self.step_count = 0
-        self.left_trajectory = None
-        self.right_trajectory = None
-
-    def generate_trajectory(self, ts_first):
-        init_mocap_pose_right = ts_first.observation['mocap_pose_right']
-        init_mocap_pose_left = ts_first.observation['mocap_pose_left']
-
-        box_info = np.array(ts_first.observation['env_state'])
-        box_xyz = box_info[:3]
-        box_quat = box_info[3:]
-        # print(f"Generate trajectory for {box_xyz=}")
-
-        gripper_pick_quat = Quaternion(init_mocap_pose_right[3:])
-        gripper_pick_quat = gripper_pick_quat * Quaternion(axis=[0.0, 1.0, 0.0], degrees=-60)
-
-        meet_left_quat = Quaternion(axis=[1.0, 0.0, 0.0], degrees=90)
-
-        meet_xyz = np.array([0, 0.5, 0.2])
-
-        self.left_trajectory = [
-            {"t": 0, "xyz": init_mocap_pose_left[:3], "quat": init_mocap_pose_left[3:], "gripper": 0}, # sleep
-            {"t": 100, "xyz": meet_xyz + np.array([-0.1, 0, -0.02]), "quat": meet_left_quat.elements, "gripper": 1}, # approach meet position
-            {"t": 260, "xyz": meet_xyz + np.array([0.02, 0, -0.02]), "quat": meet_left_quat.elements, "gripper": 1}, # move to meet position
-            {"t": 310, "xyz": meet_xyz + np.array([0.02, 0, -0.02]), "quat": meet_left_quat.elements, "gripper": 0}, # close gripper
-            {"t": 360, "xyz": meet_xyz + np.array([-0.1, 0, -0.02]), "quat": np.array([1, 0, 0, 0]), "gripper": 0}, # move left
-            {"t": 400, "xyz": meet_xyz + np.array([-0.1, 0, -0.02]), "quat": np.array([1, 0, 0, 0]), "gripper": 0}, # stay
-        ]
-
-        self.right_trajectory = [
-            {"t": 0, "xyz": init_mocap_pose_right[:3], "quat": init_mocap_pose_right[3:], "gripper": 0}, # sleep
-            {"t": 90, "xyz": box_xyz + np.array([0, 0, 0.08]), "quat": gripper_pick_quat.elements, "gripper": 1}, # approach the cube
-            {"t": 130, "xyz": box_xyz + np.array([0, 0, -0.015]), "quat": gripper_pick_quat.elements, "gripper": 1}, # go down
-            {"t": 170, "xyz": box_xyz + np.array([0, 0, -0.015]), "quat": gripper_pick_quat.elements, "gripper": 0}, # close gripper
-            {"t": 200, "xyz": meet_xyz + np.array([0.05, 0, 0]), "quat": gripper_pick_quat.elements, "gripper": 0}, # approach meet position
-            {"t": 220, "xyz": meet_xyz, "quat": gripper_pick_quat.elements, "gripper": 0}, # move to meet position
-            {"t": 310, "xyz": meet_xyz, "quat": gripper_pick_quat.elements, "gripper": 1}, # open gripper
-            {"t": 360, "xyz": meet_xyz + np.array([0.1, 0, 0]), "quat": gripper_pick_quat.elements, "gripper": 1}, # move to right
-            {"t": 400, "xyz": meet_xyz + np.array([0.1, 0, 0]), "quat": gripper_pick_quat.elements, "gripper": 1}, # stay
-        ]
+        self.inject_noise = inject_noise
+        self.init_left_pose = None
+        self.init_right_pose = None
 
     @staticmethod
     def interpolate(curr_waypoint, next_waypoint, t):
@@ -69,23 +35,42 @@ class BasePolicy:
         gripper = curr_grip + (next_grip - curr_grip) * t_frac
         return xyz, quat, gripper
 
+    def interpolate_call(self, curr_pose, rel_move):
+        # Interpolate current pose with relative move
+        new_position = curr_pose[:3] + rel_move["position"]
+        new_orientation = R.from_quat(curr_pose[3:]) * R.from_quat(rel_move["orientation"])
+        return new_position, new_orientation.as_quat()
+
     def __call__(self, ts):
-        # generate trajectory at first timestep, then open-loop execution
         if self.step_count == 0:
-            self.generate_trajectory(ts)
+            self.init_left_pose = np.array(ts.observation['mocap_pose_left'])
+            self.init_right_pose = np.array(ts.observation['mocap_pose_right'])
+            self.curr_left_waypoint = self.init_left_pose
+            self.curr_right_waypoint = self.init_right_pose
 
-        # obtain left and right waypoints
-        if self.left_trajectory[0]['t'] == self.step_count:
-            self.curr_left_waypoint = self.left_trajectory.pop(0)
-        next_left_waypoint = self.left_trajectory[0]
+        # Get the latest relative positions and orientations
+        if self.left_subscriber.latest_relative_position is not None:
+            left_rel_move = {
+                "position": self.left_subscriber.latest_relative_position,
+                "orientation": self.left_subscriber.latest_relative_orientation
+            }
+            left_xyz, left_quat = self.interpolate_call(self.curr_left_waypoint, left_rel_move)
+            self.curr_left_waypoint = np.concatenate([left_xyz, left_quat])
+        else:
+            left_xyz, left_quat = self.curr_left_waypoint[:3], self.curr_left_waypoint[3:]
 
-        if self.right_trajectory[0]['t'] == self.step_count:
-            self.curr_right_waypoint = self.right_trajectory.pop(0)
-        next_right_waypoint = self.right_trajectory[0]
+        if self.right_subscriber.latest_relative_position is not None:
+            right_rel_move = {
+                "position": self.right_subscriber.latest_relative_position,
+                "orientation": self.right_subscriber.latest_relative_orientation
+            }
+            right_xyz, right_quat = self.interpolate_call(self.curr_right_waypoint, right_rel_move)
+            self.curr_right_waypoint = np.concatenate([right_xyz, right_quat])
+        else:
+            right_xyz, right_quat = self.curr_right_waypoint[:3], self.curr_right_waypoint[3:]
 
-        # interpolate between waypoints to obtain current pose and gripper command
-        left_xyz, left_quat, left_gripper = self.interpolate(self.curr_left_waypoint, next_left_waypoint, self.step_count)
-        right_xyz, right_quat, right_gripper = self.interpolate(self.curr_right_waypoint, next_right_waypoint, self.step_count)
+        left_gripper = 0  # Define gripper state as needed
+        right_gripper = 0  # Define gripper state as needed
 
         # Inject noise
         if self.inject_noise:
@@ -99,48 +84,5 @@ class BasePolicy:
         self.step_count += 1
         return np.concatenate([action_left, action_right])
 
-
-#def test_policy(task_name):
-    # example rolling out pick_and_transfer policy
-    # onscreen_render = True
-    # inject_noise = False
-
-    # # setup the environment
-    # episode_len = SIM_TASK_CONFIGS[task_name]['episode_len']
-    # if 'sim_transfer_cube' in task_name:
-    #     env = make_ee_sim_env('sim_transfer_cube')
-    # elif 'sim_lift_cube' in task_name:
-    #     env = make_ee_sim_env('sim_lift_cube')
-    # elif 'sim_insertion' in task_name:
-    #     env = make_ee_sim_env('sim_insertion')
-    # else:
-    #     raise NotImplementedError
-
-    # for episode_idx in range(2):
-    #     ts = env.reset()
-    #     episode = [ts]
-    #     if onscreen_render:
-    #         ax = plt.subplot()
-    #         plt_img = ax.imshow(ts.observation['images']['angle'])
-    #         plt.ion()
-
-    #     policy = BasePolicy(inject_noise)
-    #     for step in range(episode_len):
-    #         action = policy(ts)
-    #         ts = env.step(action)
-    #         episode.append(ts)
-    #         if onscreen_render:
-    #             plt_img.set_data(ts.observation['images']['angle'])
-    #             plt.pause(0.02)
-    #     plt.close()
-
-    #     episode_return = np.sum([ts.reward for ts in episode[1:]])
-    #     if episode_return > 0:
-    #         print(f"{episode_idx=} Successful, {episode_return=}")
-    #     else:
-    #         print(f"{episode_idx=} Failed")
-
-
 if __name__ == '__main__':
     test_task_name = 'sim_transfer_cube_scripted'
-    #test_policy(test_task_name)
