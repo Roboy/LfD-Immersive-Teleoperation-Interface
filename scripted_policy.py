@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pyquaternion import Quaternion
+from scipy.interpolate import CubicSpline
 
 from constants import SIM_TASK_CONFIGS
 from ee_sim_env import make_ee_sim_env
@@ -9,55 +10,63 @@ from scipy.spatial.transform import Rotation as R
 import IPython
 e = IPython.embed
 
-
 class BasePolicy:
     def __init__(self, left_pose_subscriber, right_pose_subscriber, inject_noise=False):
         self.left_subscriber = left_pose_subscriber
-        self.right_subscriber = left_pose_subscriber
+        self.right_subscriber = right_pose_subscriber
         self.curr_left_waypoint = None
         self.curr_right_waypoint = None
         self.step_count = 0
         self.inject_noise = inject_noise
         self.init_left_pose = None
         self.init_right_pose = None
+        self.left_trajectory = None
+        self.right_trajectory = None
 
     @staticmethod
-    def interpolate(curr_waypoint, next_waypoint, t):
-        t_frac = (t - curr_waypoint["t"]) / (next_waypoint["t"] - curr_waypoint["t"])
-        curr_xyz = curr_waypoint['xyz']
-        curr_quat = curr_waypoint['quat']
-        curr_grip = curr_waypoint['gripper']
-        next_xyz = next_waypoint['xyz']
-        next_quat = next_waypoint['quat']
-        next_grip = next_waypoint['gripper']
-        xyz = curr_xyz + (next_xyz - curr_xyz) * t_frac
-        quat = curr_quat + (next_quat - curr_quat) * t_frac
-        gripper = curr_grip + (next_grip - curr_grip) * t_frac
-        return xyz, quat, gripper
+    def interpolate(waypoints, t):
+        times = np.linspace(0, 1, len(waypoints))
+        positions = np.array([wp["xyz"] for wp in waypoints])
+        orientations = np.array([wp["quat"] for wp in waypoints])
+        grippers = np.array([wp["gripper"] for wp in waypoints])
+
+        pos_spline = CubicSpline(times, positions, axis=0)
+        quat_spline = CubicSpline(times, orientations, axis=0)
+        grip_spline = CubicSpline(times, grippers, axis=0)
+
+        return pos_spline(t), quat_spline(t), grip_spline(t)
+
+    def plan_trajectory(self, curr_waypoint, next_waypoint, steps=10):
+        waypoints = [
+            {"t": 0, "xyz": curr_waypoint[:3], "quat": curr_waypoint[3:7], "gripper": curr_waypoint[7]},
+            {"t": 1, "xyz": next_waypoint[:3], "quat": next_waypoint[3:7], "gripper": next_waypoint[7]}
+        ]
+        times = np.linspace(0, 1, steps)
+        trajectory = [self.interpolate(waypoints, t) for t in times]
+        return trajectory
 
     def interpolate_call(self, curr_pose, rel_move):
-        # Interpolate current pose with relative move
         new_position = curr_pose[:3] + rel_move["position"]
-        new_orientation = R.from_quat(curr_pose[3:]) * R.from_quat(rel_move["orientation"])
+        new_orientation = R.from_quat(curr_pose[3:7]) * R.from_quat(rel_move["orientation"])
         return new_position, new_orientation.as_quat()
 
     def __call__(self, ts):
         if self.step_count == 0:
             self.init_left_pose = np.array(ts.observation['mocap_pose_left'])
             self.init_right_pose = np.array(ts.observation['mocap_pose_right'])
-            self.curr_left_waypoint = self.init_left_pose
-            self.curr_right_waypoint = self.init_right_pose
+            self.curr_left_waypoint = np.concatenate([self.init_left_pose, [0]])  # Assuming initial gripper state is 0
+            self.curr_right_waypoint = np.concatenate([self.init_right_pose, [0]])  # Assuming initial gripper state is 0
 
-        # Get the latest relative positions and orientations
         if self.left_subscriber.latest_relative_position is not None:
             left_rel_move = {
                 "position": self.left_subscriber.latest_relative_position,
                 "orientation": self.left_subscriber.latest_relative_orientation
             }
             left_xyz, left_quat = self.interpolate_call(self.curr_left_waypoint, left_rel_move)
-            self.curr_left_waypoint = np.concatenate([left_xyz, left_quat])
+            self.curr_left_waypoint = np.concatenate([left_xyz, left_quat, [0]])  # Assuming gripper state is 0
+            self.left_trajectory = self.plan_trajectory(self.curr_left_waypoint, self.curr_left_waypoint)
         else:
-            left_xyz, left_quat = self.curr_left_waypoint[:3], self.curr_left_waypoint[3:]
+            left_xyz, left_quat = self.curr_left_waypoint[:3], self.curr_left_waypoint[3:7]
 
         if self.right_subscriber.latest_relative_position is not None:
             right_rel_move = {
@@ -65,14 +74,14 @@ class BasePolicy:
                 "orientation": self.right_subscriber.latest_relative_orientation
             }
             right_xyz, right_quat = self.interpolate_call(self.curr_right_waypoint, right_rel_move)
-            self.curr_right_waypoint = np.concatenate([right_xyz, right_quat])
+            self.curr_right_waypoint = np.concatenate([right_xyz, right_quat, [0]])  # Assuming gripper state is 0
+            self.right_trajectory = self.plan_trajectory(self.curr_right_waypoint, self.curr_right_waypoint)
         else:
-            right_xyz, right_quat = self.curr_right_waypoint[:3], self.curr_right_waypoint[3:]
+            right_xyz, right_quat = self.curr_right_waypoint[:3], self.curr_right_waypoint[3:7]
 
-        left_gripper = 0  # Define gripper state as needed
-        right_gripper = 0  # Define gripper state as needed
+        left_gripper = 0
+        right_gripper = 0
 
-        # Inject noise
         if self.inject_noise:
             scale = 0.01
             left_xyz = left_xyz + np.random.uniform(-scale, scale, left_xyz.shape)
