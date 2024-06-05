@@ -11,6 +11,10 @@ from sim_env import make_sim_env, BOX_POSE
 from scripted_policy import PickAndTransferPolicy, InsertionPolicy, PickPolicy
 import cv2
 
+from ros2_headset_pos_subscriber import HeadsetSubscriber
+from ros2_sim_img_publisher import CameraNode
+from ros2_contr_pose_subscriber import PoseSubscriber
+
 
 import IPython
 e = IPython.embed
@@ -20,8 +24,6 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
-from ros2_headset_pos_subscriber import HeadsetSubscriber
-from ros2_sim_img_publisher import CameraNode
 
 ros_shutdown_flag = False
 
@@ -43,16 +45,22 @@ def ros_spin(shared_state):
     rclpy.init()
     shared_state.camera_publisher = CameraNode()
     shared_state.headset_subscriber = HeadsetSubscriber()
+    shared_state.left_pose_subscriber = PoseSubscriber('/operator/device/controller/left/pose')
+    shared_state.right_pose_subscriber = PoseSubscriber('/operator/device/controller/right/pose')
     shared_state.initialized.set()  # Signal that the subscribers are initialized
 
     try:
         while rclpy.ok() and not ros_shutdown_flag:
             rclpy.spin_once(shared_state.camera_publisher, timeout_sec=1.0)
             rclpy.spin_once(shared_state.headset_subscriber, timeout_sec=1.0)
+            rclpy.spin_once(shared_state.left_pose_subscriber, timeout_sec=1.0)
+            rclpy.spin_once(shared_state.right_pose_subscriber, timeout_sec=1.0)
     finally:
         print("Shutting down ROS node")
         shared_state.camera_publisher.destroy_node()
         shared_state.headset_subscriber.destroy_node()
+        shared_state.left_pose_subscriber.destroy_node()
+        shared_state.right_pose_subscriber.destroy_node()
         rclpy.shutdown()
         print("ROS node destroyed and shutdown completed")
 
