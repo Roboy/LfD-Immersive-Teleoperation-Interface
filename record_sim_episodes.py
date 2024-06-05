@@ -20,109 +20,63 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
-from ros2_subscriber import SingletonSubscriber
+from ros2_headset_pos_subscriber import HeadsetSubscriber
+from ros2_sim_img_publisher import CameraNode
 
 ros_shutdown_flag = False
 
-class CameraNode(Node):
+# Initialize shared state
+class SharedState:
     def __init__(self):
-        super().__init__("stereocamera_node")
-        self.left_image_topic_ = self.declare_parameter("left_image_topic", "/image/left/image_compressed").value
-        self.right_image_topic_ = self.declare_parameter("right_image_topic", "/image/right/image_compressed").value
-        self.exception_counter = 0
-        self.fps = 5  # Adjust FPS as necessary
-        self.left_frame_id_ = self.declare_parameter("left_frame_id", "left_camera").value
-        self.right_frame_id_ = self.declare_parameter("right_frame_id", "right_camera").value
-        self.left_image_publisher_ = self.create_publisher(CompressedImage, self.left_image_topic_, 1)
-        self.right_image_publisher_ = self.create_publisher(CompressedImage, self.right_image_topic_, 1)
-        
-        self.br = CvBridge()
+        self.left_pose_subscriber = None
+        self.right_pose_subscriber = None
+        self.headset_subscriber = None
+        self.camera_publisher = None
+        self.initialized = threading.Event()
 
-        self.timer = self.create_timer(1.0/self.fps, self.image_callback)
-        self.get_logger().info(f"Stereocamera node ready with {self.fps} FPS")
+shared_state = SharedState()
+ros_shutdown_flag = False
 
-
-    def image_callback(self):
-        try:
-            time_msg = self.get_time_msg()
-            if hasattr(self, 'first_plt_img') and hasattr(self, 'sec_plt_img'):
-                # Resize images to a quarter of their original size
-                resized_first_img = cv2.resize(self.first_plt_img, (self.first_plt_img.shape[1] // 2, self.first_plt_img.shape[0] // 2))
-                resized_sec_img = cv2.resize(self.sec_plt_img, (self.sec_plt_img.shape[1] // 2, self.sec_plt_img.shape[0] // 2))
-
-                # Create black frames
-                frame_height = max(self.first_plt_img.shape[0], self.sec_plt_img.shape[0]) * 2
-                frame_width = max(self.first_plt_img.shape[1], self.sec_plt_img.shape[1]) * 2
-                black_frame_first = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
-                black_frame_sec = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
-
-                # Position resized images
-                resized_first_y = (frame_height - resized_first_img.shape[0]) // 2
-                resized_first_x = (frame_width - resized_first_img.shape[1]) // 2
-                black_frame_first[resized_first_y:resized_first_y + resized_first_img.shape[0], resized_first_x:resized_first_x + resized_first_img.shape[1]] = resized_first_img
-
-                resized_sec_y = (frame_height - resized_sec_img.shape[0]) // 2
-                resized_sec_x = (frame_width - resized_sec_img.shape[1]) // 2
-                black_frame_sec[resized_sec_y:resized_sec_y + resized_sec_img.shape[0], resized_sec_x:resized_sec_x + resized_sec_img.shape[1]] = resized_sec_img
-
-                # Position original images within the resized images
-                original_first_y = resized_first_y + (resized_first_img.shape[0] - self.first_plt_img.shape[0]) // 2
-                original_first_x = resized_first_x + (resized_first_img.shape[1] - self.first_plt_img.shape[1]) // 2
-                black_frame_first[original_first_y:original_first_y + self.first_plt_img.shape[0], original_first_x:original_first_x + self.first_plt_img.shape[1]] = self.first_plt_img
-
-                original_sec_y = resized_sec_y + (resized_sec_img.shape[0] - self.sec_plt_img.shape[0]) // 2
-                original_sec_x = resized_sec_x + (resized_sec_img.shape[1] - self.sec_plt_img.shape[1]) // 2
-                black_frame_sec[original_sec_y:original_sec_y + self.sec_plt_img.shape[0], original_sec_x:original_sec_x + self.sec_plt_img.shape[1]] = self.sec_plt_img
-
-                 # Convert frames to image messages
-                left_img_msg = self.get_image_msg(black_frame_first, time_msg, compressed=True)
-                right_img_msg = self.get_image_msg(black_frame_sec, time_msg, compressed=True, left=False)
-
-                # Publish the image messages
-                self.left_image_publisher_.publish(left_img_msg)
-                self.right_image_publisher_.publish(right_img_msg)
-        except Exception as e:
-            # Handle exceptions if needed
-            print(f"Error in image_callback: {e}")
-
-    def get_time_msg(self):
-        time_msg = self.get_clock().now().to_msg()
-        return time_msg
-
-    def get_image_msg(self, image, time, compressed=False, left=True):
-        img_msg = self.br.cv2_to_compressed_imgmsg(image, dst_format='jpeg') if compressed else self.br.cv2_to_imgmsg(image)
-        img_msg.header.stamp = time
-        img_msg.header.frame_id = self.left_frame_id_ if left else self.right_frame_id_
-        return img_msg
-
-def ros_spin():
+# Define the ros_spin function
+def ros_spin(shared_state):
     global ros_shutdown_flag
     rclpy.init()
-    subscriber_node = SingletonSubscriber.get_instance()
-    camera_node = CameraNode()
+    shared_state.camera_publisher = CameraNode()
+    shared_state.headset_subscriber = HeadsetSubscriber()
+    shared_state.initialized.set()  # Signal that the subscribers are initialized
+
     try:
         while rclpy.ok() and not ros_shutdown_flag:
-            rclpy.spin_once(subscriber_node, timeout_sec=1.0)
-            rclpy.spin_once(camera_node, timeout_sec=1.0)
+            rclpy.spin_once(shared_state.camera_publisher, timeout_sec=1.0)
+            rclpy.spin_once(shared_state.headset_subscriber, timeout_sec=1.0)
     finally:
         print("Shutting down ROS node")
-        subscriber_node.destroy_node()
-        camera_node.destroy_node()
+        shared_state.camera_publisher.destroy_node()
+        shared_state.headset_subscriber.destroy_node()
         rclpy.shutdown()
         print("ROS node destroyed and shutdown completed")
 
+# Define the ros_kill function
 def ros_kill():
     global ros_shutdown_flag
     print("Setting shutdown flag")
     ros_shutdown_flag = True
 
+# Define the main function
 def main(args):
     global ros_shutdown_flag
+    shared_state = SharedState()
 
-    ros_thread = threading.Thread(target=ros_spin)
+    # Start ROS spin in a separate thread
+    ros_thread = threading.Thread(target=ros_spin, args=(shared_state,))
     ros_thread.start()
-    subscriber_instance = SingletonSubscriber.get_instance()
 
+    # Wait until the subscribers are initialized
+    shared_state.initialized.wait()
+
+    # Access the pose subscribers
+    print("Camera Publisher:", shared_state.camera_publisher)
+    print("Headset Subscriber:", shared_state.headset_subscriber)
 
     """
     Generate demonstration data in simulation.
@@ -163,7 +117,7 @@ def main(args):
         # setup the environment
         env = make_ee_sim_env(task_name)
         # This method resets the environment to its initial state and returns the first TimeStep.
-        ts = env.reset(subscriber_instance)
+        ts = env.reset(shared_state.headset_subscriber)
 
         episode = [ts]
         policy = policy_cls(inject_noise)
@@ -181,14 +135,14 @@ def main(args):
 
         for step in range(episode_len):
             action = policy(ts)
-            ts = env.step(action, subscriber_instance)
+            ts = env.step(action, shared_state.headset_subscriber)
             episode.append(ts)
             if onscreen_render:
                 first_plt_img.set_data(ts.observation['images'][first_cam])
                 sec_plt_img.set_data(ts.observation['images'][second_cam])
                 # Update images in CameraNode
-                CameraNode.first_plt_img = ts.observation['images'][first_cam]
-                CameraNode.sec_plt_img = ts.observation['images'][second_cam]
+                shared_state.camera_publisher.first_plt_img = ts.observation['images'][first_cam]
+                shared_state.camera_publisher.sec_plt_img = ts.observation['images'][second_cam]
                 plt.pause(0.002)
         plt.close()
 
@@ -219,7 +173,7 @@ def main(args):
         print('Replaying joint commands')
         env = make_sim_env(task_name)
         BOX_POSE[0] = subtask_info  # make sure the sim_env has the same object configurations as ee_sim_env
-        ts = env.reset(subscriber_instance)
+        ts = env.reset(shared_state.headset_subscriber)
 
         episode_replay = [ts]
         # setup plotting
@@ -230,14 +184,14 @@ def main(args):
             plt.ion()
         for t in range(len(joint_traj)):  # note: this will increase episode length by 1
             action = joint_traj[t]
-            ts = env.step(action, subscriber_instance)
+            ts = env.step(action, shared_state.headset_subscriber)
             episode_replay.append(ts)
             if onscreen_render:
                 first_plt_img.set_data(ts.observation['images'][first_cam])
                 sec_plt_img.set_data(ts.observation['images'][second_cam])
                 # Update images in CameraNode
-                CameraNode.first_plt_img = ts.observation['images'][first_cam]
-                CameraNode.sec_plt_img = ts.observation['images'][second_cam]
+                shared_state.camera_publisher.first_plt_img = ts.observation['images'][first_cam]
+                shared_state.camera_publisher.sec_plt_img = ts.observation['images'][second_cam]
                 plt.pause(0.002)
 
         episode_return = np.sum([ts.reward for ts in episode_replay[1:]])

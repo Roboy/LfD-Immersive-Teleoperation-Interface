@@ -3,21 +3,21 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 
-class SingletonSubscriber(Node):
+class HeadsetSubscriber(Node):
     _instance = None
 
     @staticmethod
     def get_instance():
-        if SingletonSubscriber._instance is None:
-            SingletonSubscriber()
-        return SingletonSubscriber._instance
+        if HeadsetSubscriber._instance is None:
+            HeadsetSubscriber()
+        return HeadsetSubscriber._instance
 
     def __init__(self):
-        if SingletonSubscriber._instance is not None:
+        if HeadsetSubscriber._instance is not None:
             raise Exception("This class is a singleton!")
         else:
             super().__init__('singleton_subscriber')
-            SingletonSubscriber._instance = self
+            HeadsetSubscriber._instance = self
             self.subscription = self.create_subscription(
                 PoseStamped,
                 '/operator/alice/headset_orientation',
@@ -35,7 +35,7 @@ class SingletonSubscriber(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    subscriber_node = SingletonSubscriber.get_instance()
+    subscriber_node = HeadsetSubscriber.get_instance()
     rclpy.spin(subscriber_node)
     subscriber_node.destroy_node()
     rclpy.shutdown()
