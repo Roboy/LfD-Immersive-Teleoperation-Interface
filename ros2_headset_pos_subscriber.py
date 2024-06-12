@@ -12,7 +12,7 @@ class HeadsetSubscriber(Node):
             HeadsetSubscriber()
         return HeadsetSubscriber._instance
 
-    def __init__(self):
+    def __init__(self, head_pos_rotating):
         if HeadsetSubscriber._instance is not None:
             raise Exception("This class is a singleton!")
         else:
@@ -25,6 +25,7 @@ class HeadsetSubscriber(Node):
                 10)
             self.subscription  # prevent unused variable warning
             self.latest_message = None
+            self.head_pos_rotating = head_pos_rotating
 
     def listener_callback(self, msg):
         self.latest_message = msg

@@ -24,12 +24,18 @@ class CameraNode(Node):
 
 
     def image_callback(self):
+        factor=1
         try:
             time_msg = self.get_time_msg()
             if hasattr(self, 'first_plt_img') and hasattr(self, 'sec_plt_img'):
-                # Resize images to a quarter of their original size
-                resized_first_img = cv2.resize(self.first_plt_img, (self.first_plt_img.shape[1] // 2, self.first_plt_img.shape[0] // 2))
-                resized_sec_img = cv2.resize(self.sec_plt_img, (self.sec_plt_img.shape[1] // 2, self.sec_plt_img.shape[0] // 2))
+
+                # Resize images based on the factor
+                resized_first_img = cv2.resize(self.first_plt_img, 
+                                               (int(self.first_plt_img.shape[1] * factor), 
+                                                int(self.first_plt_img.shape[0] * factor)))
+                resized_sec_img = cv2.resize(self.sec_plt_img, 
+                                             (int(self.sec_plt_img.shape[1] * factor), 
+                                              int(self.sec_plt_img.shape[0] * factor)))
 
                 # Create black frames
                 frame_height = max(self.first_plt_img.shape[0], self.sec_plt_img.shape[0]) * 2
@@ -37,31 +43,26 @@ class CameraNode(Node):
                 black_frame_first = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
                 black_frame_sec = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
 
-                # Position resized images
-                resized_first_y = (frame_height - resized_first_img.shape[0]) // 2
+                # Position resized images in the center of black frames
+                resized_first_y = ((frame_height - resized_first_img.shape[0]) // 2) - 20
                 resized_first_x = (frame_width - resized_first_img.shape[1]) // 2
-                black_frame_first[resized_first_y:resized_first_y + resized_first_img.shape[0], resized_first_x:resized_first_x + resized_first_img.shape[1]] = resized_first_img
+                black_frame_first[resized_first_y:resized_first_y + resized_first_img.shape[0], 
+                                  resized_first_x:resized_first_x + resized_first_img.shape[1]] = resized_first_img
 
                 resized_sec_y = (frame_height - resized_sec_img.shape[0]) // 2
                 resized_sec_x = (frame_width - resized_sec_img.shape[1]) // 2
-                black_frame_sec[resized_sec_y:resized_sec_y + resized_sec_img.shape[0], resized_sec_x:resized_sec_x + resized_sec_img.shape[1]] = resized_sec_img
+                black_frame_sec[resized_sec_y:resized_sec_y + resized_sec_img.shape[0], 
+                                resized_sec_x:resized_sec_x + resized_sec_img.shape[1]] = resized_sec_img
 
-                # Position original images within the resized images
-                original_first_y = resized_first_y + (resized_first_img.shape[0] - self.first_plt_img.shape[0]) // 2
-                original_first_x = resized_first_x + (resized_first_img.shape[1] - self.first_plt_img.shape[1]) // 2
-                black_frame_first[original_first_y:original_first_y + self.first_plt_img.shape[0], original_first_x:original_first_x + self.first_plt_img.shape[1]] = self.first_plt_img
-
-                original_sec_y = resized_sec_y + (resized_sec_img.shape[0] - self.sec_plt_img.shape[0]) // 2
-                original_sec_x = resized_sec_x + (resized_sec_img.shape[1] - self.sec_plt_img.shape[1]) // 2
-                black_frame_sec[original_sec_y:original_sec_y + self.sec_plt_img.shape[0], original_sec_x:original_sec_x + self.sec_plt_img.shape[1]] = self.sec_plt_img
-
-                 # Convert frames to image messages
+                # Convert frames to image messages
                 left_img_msg = self.get_image_msg(black_frame_first, time_msg, compressed=True)
                 right_img_msg = self.get_image_msg(black_frame_sec, time_msg, compressed=True, left=False)
 
                 # Publish the image messages
                 self.left_image_publisher_.publish(left_img_msg)
                 self.right_image_publisher_.publish(right_img_msg)
+
+
         except Exception as e:
             # Handle exceptions if needed
             print(f"Error in image_callback: {e}")

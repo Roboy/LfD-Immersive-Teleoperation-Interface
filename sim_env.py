@@ -135,7 +135,7 @@ class BimanualViperXTask(base.Task):
 
         left_eye_id = physics.model.name2id('left_eye', 'camera')
         right_eye_id = physics.model.name2id('right_eye', 'camera')
-        if subscriber_instance != None:
+        if subscriber_instance.head_pos_rotating == True:
             latest_message = subscriber_instance.get_latest_message()
             if latest_message:
                 roll = latest_message.pose.position.x

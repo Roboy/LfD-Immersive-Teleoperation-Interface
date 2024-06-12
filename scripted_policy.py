@@ -11,9 +11,10 @@ import IPython
 e = IPython.embed
 
 class BasePolicy:
-    def __init__(self, left_pose_subscriber, right_pose_subscriber, inject_noise=False):
+    def __init__(self, left_pose_subscriber, right_pose_subscriber, joint_subscriber, inject_noise=False):
         self.left_subscriber = left_pose_subscriber
         self.right_subscriber = right_pose_subscriber
+        self.joint_subscriber = joint_subscriber
         self.curr_left_waypoint = None
         self.curr_right_waypoint = None
         self.step_count = 0
@@ -46,9 +47,27 @@ class BasePolicy:
         return trajectory
 
     def interpolate_call(self, curr_pose, rel_move):
-        new_position = curr_pose[:3] + rel_move["position"]
+        combination = 1
+        if combination == 1:
+            corrected_position = np.array([
+                rel_move["position"][0],  # +x
+                rel_move["position"][1],  # +y
+                rel_move["position"][2]   # +z
+            ])
+        # (weitere Kombinationen entfernt, um Platz zu sparen)
+        new_position = curr_pose[:3] + corrected_position
         new_orientation = R.from_quat(curr_pose[3:7]) * R.from_quat(rel_move["orientation"])
         return new_position, new_orientation.as_quat()
+
+    def get_gripper_state(self):
+        # Determine gripper state based on joint subscriber values
+        left_gripper_open = self.joint_subscriber.left_finger_L == 0.0 and self.joint_subscriber.right_finger_L == 0.0
+        right_gripper_open = self.joint_subscriber.left_finger_R == 0.0 and self.joint_subscriber.right_finger_R == 0.0
+
+        left_gripper = 1 if left_gripper_open else 0
+        right_gripper = 1 if right_gripper_open else 0
+
+        return left_gripper, right_gripper
 
     def __call__(self, ts):
         if self.step_count == 0:
@@ -63,10 +82,12 @@ class BasePolicy:
                 "orientation": self.left_subscriber.latest_relative_orientation
             }
             left_xyz, left_quat = self.interpolate_call(self.curr_left_waypoint, left_rel_move)
-            self.curr_left_waypoint = np.concatenate([left_xyz, left_quat, [0]])  # Assuming gripper state is 0
+            left_gripper, _ = self.get_gripper_state()
+            self.curr_left_waypoint = np.concatenate([left_xyz, left_quat, [left_gripper]])  # Update gripper state
             self.left_trajectory = self.plan_trajectory(self.curr_left_waypoint, self.curr_left_waypoint)
         else:
             left_xyz, left_quat = self.curr_left_waypoint[:3], self.curr_left_waypoint[3:7]
+            left_gripper = self.curr_left_waypoint[7]
 
         if self.right_subscriber.latest_relative_position is not None:
             right_rel_move = {
@@ -74,13 +95,12 @@ class BasePolicy:
                 "orientation": self.right_subscriber.latest_relative_orientation
             }
             right_xyz, right_quat = self.interpolate_call(self.curr_right_waypoint, right_rel_move)
-            self.curr_right_waypoint = np.concatenate([right_xyz, right_quat, [0]])  # Assuming gripper state is 0
+            _, right_gripper = self.get_gripper_state()
+            self.curr_right_waypoint = np.concatenate([right_xyz, right_quat, [right_gripper]])  # Update gripper state
             self.right_trajectory = self.plan_trajectory(self.curr_right_waypoint, self.curr_right_waypoint)
         else:
             right_xyz, right_quat = self.curr_right_waypoint[:3], self.curr_right_waypoint[3:7]
-
-        left_gripper = 0
-        right_gripper = 0
+            right_gripper = self.curr_right_waypoint[7]
 
         if self.inject_noise:
             scale = 0.01
