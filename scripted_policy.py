@@ -60,14 +60,20 @@ class BasePolicy:
         return new_position, new_orientation.as_quat()
 
     def get_gripper_state(self):
-        # Determine gripper state based on joint subscriber values
-        left_gripper_open = self.joint_subscriber.left_finger_L == 0.0 and self.joint_subscriber.right_finger_L == 0.0
-        right_gripper_open = self.joint_subscriber.left_finger_R == 0.0 and self.joint_subscriber.right_finger_R == 0.0
+        # Define a small threshold to consider the gripper as open
+        threshold = 1e-5  # Adjust this value as necessary based on observed data
+
+        # Determine gripper state based on joint subscriber values and threshold
+        left_gripper_open = (abs(self.joint_subscriber.left_finger_L) < threshold and
+                            abs(self.joint_subscriber.right_finger_L) < threshold)
+        right_gripper_open = (abs(self.joint_subscriber.left_finger_R) < threshold and
+                            abs(self.joint_subscriber.right_finger_R) < threshold)
 
         left_gripper = 1 if left_gripper_open else 0
         right_gripper = 1 if right_gripper_open else 0
 
         return left_gripper, right_gripper
+
 
     def __call__(self, ts):
         if self.step_count == 0:
