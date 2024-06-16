@@ -9,7 +9,6 @@ from constants import PUPPET_GRIPPER_POSITION_NORMALIZE_FN, SIM_TASK_CONFIGS
 from ee_sim_env import make_ee_sim_env
 from sim_env import make_sim_env, BOX_POSE
 from scripted_policy import BasePolicy
-import cv2
 
 from ros2_headset_pos_subscriber import HeadsetSubscriber
 from ros2_sim_img_publisher import CameraNode
@@ -22,9 +21,6 @@ e = IPython.embed
 
 import threading
 import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import CompressedImage
-from cv_bridge import CvBridge
 
 ros_shutdown_flag = False
 head_pos_rotating = False
