@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation as R
 class PoseSubscriber(Node):
     def __init__(self, topic_name):
         super().__init__('pose_subscriber_' + topic_name.split('/')[-1])
-        self.subscription = self.create_subscription(Pose, topic_name, self.pose_callback, 10)
+        self.subscription = self.create_subscription(Pose, topic_name, self.pose_callback, 1)
         self.prev_pose = None
         self.relative_trajectory = []
         self.latest_relative_position = None

@@ -22,7 +22,7 @@ class HeadsetSubscriber(Node):
                 PoseStamped,
                 '/operator/alice/headset_orientation',
                 self.listener_callback,
-                10)
+                1)
             self.subscription  # prevent unused variable warning
             self.latest_message = None
             self.head_pos_rotating = head_pos_rotating

@@ -5,7 +5,7 @@ from sensor_msgs.msg import JointState
 class JointStateSubscriber(Node):
     def __init__(self, topic_name='/operator/alice/joint_state'):
         super().__init__('joint_state_subscriber_' + topic_name.split('/')[-1])
-        self.subscription = self.create_subscription(JointState, topic_name, self.joint_state_callback, 10)
+        self.subscription = self.create_subscription(JointState, topic_name, self.joint_state_callback, 1)
         self.right_finger_R = None
         self.left_finger_R = None
         self.left_finger_L = None
