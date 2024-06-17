@@ -64,13 +64,17 @@ class DiffusionPolicy(nn.Module):
             })
         })
 
-        nets = nets.float().cuda()
         ENABLE_EMA = True
+        n_parameters = sum(p.numel() for p in self.parameters())
+        self.nets = nets
+        parameters = list(self.nets.parameters()) if self.nets else []
+
+
         if ENABLE_EMA:
-            ema = EMAModel(model=nets, power=self.ema_power)
+            ema = EMAModel(model=nets, power=self.ema_power, parameters = parameters)
         else:
             ema = None
-        self.nets = nets
+        
         self.ema = ema
 
         # setup noise scheduler
@@ -83,7 +87,6 @@ class DiffusionPolicy(nn.Module):
             prediction_type='epsilon'
         )
 
-        n_parameters = sum(p.numel() for p in self.parameters())
         print("number of parameters: %.2fM" % (n_parameters/1e6,))
 
 
