@@ -64,7 +64,7 @@ class DiffusionPolicy(nn.Module):
             })
         })
 
-        ENABLE_EMA = True
+        ENABLE_EMA = False
         n_parameters = sum(p.numel() for p in self.parameters())
         self.nets = nets
         parameters = list(self.nets.parameters()) if self.nets else []
