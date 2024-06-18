@@ -3,7 +3,7 @@
     <include file="vx300s_dependencies.xml"/>
 
     <equality>
-        <weld body1="mocap_left" body2="vx300s_left/gripper_link" solref="0.01 1" solimp=".25 .25 0.001" />
+        <weld body1="mocap_left" body2="pyramid" solref="0.01 1" solimp=".25 .25 0.001" />
         <weld body1="mocap_right" body2="vx300s_right/gripper_link" solref="0.01 1" solimp=".25 .25 0.001" />
     </equality>
 
@@ -27,6 +27,13 @@
             <inertial pos="0 0 0.3" mass="0.05" diaginertia="0.002 0.002 0.002" />
             <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.08 0.02 0.02" type="box" name="red_box" rgba="1 0 0 1" />
         </body>
+
+        <body name="pyramid" pos="0.2 0.5 0.55">
+            <joint name="red_pyramid_joint" type="free" frictionloss="0.01" damping="0.1" armature="0.01" />
+            <inertial pos="0 0 0" mass="0.05" diaginertia="0.002 0.002 0.002" />
+            <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.1 0.1 0.1" type="mesh" mesh="pyramid_mesh" name="red_pyramid" rgba="1 1 0 1" />
+        </body>
+
     </worldbody>
 
     <actuator>
@@ -37,8 +44,9 @@
         <position ctrllimited="true" ctrlrange="-0.057 -0.021" joint="vx300s_right/right_finger" kp="200"  user="1"/>
     </actuator>
     <!-- /operator/device/controller/left/pose -->
+    <!-- wenn die Pyramide entfernt wird sollte ich qpos wieder reduzieren ansonsten drohen fehler -->
 
     <keyframe>
-        <key qpos="0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0.2 0.5 0.05 1 0 0 0"/>
+        <key qpos="0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0.2 0.5 0.05 1 0 0 0 0.2 0.5 0.05 1 0 0 0"/>
     </keyframe>
 </mujoco>

@@ -12,6 +12,7 @@
         <mesh name="vx300s_9_gripper_bar" file="vx300s_9_gripper_bar.stl" scale="0.001 0.001 0.001" />
         <mesh name="vx300s_10_gripper_finger_left" file="vx300s_10_custom_finger_left.stl" scale="0.001 0.001 0.001" />
         <mesh name="vx300s_10_gripper_finger_right" file="vx300s_10_custom_finger_right.stl" scale="0.001 0.001 0.001" />
+        <mesh name="pyramid_mesh" file="tinker_bin.stl" scale="0.02 0.02 0.02" />
     </asset>
 
 </mujocoinclude>
