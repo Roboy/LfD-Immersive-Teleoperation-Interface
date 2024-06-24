@@ -322,7 +322,7 @@ class TransferCubeEETask(BimanualViperXEETask):
         cube_pose = sample_box_pose()
         box_start_idx = physics.model.name2id('red_box_joint', 'joint')
         np.copyto(physics.data.qpos[box_start_idx : box_start_idx + 7], cube_pose)
-        # print(f"randomized cube position to {cube_position}")
+        #print(f"randomized cube position to {cube_position}")
 
         super().initialize_episode(physics)
 
