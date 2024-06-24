@@ -3,8 +3,8 @@
     <include file="vx300s_dependencies.xml"/>
 
     <equality>
-        <weld body1="mocap_left" body2="pyramid" solref="0.01 1" solimp=".25 .25 0.001" />
-        <weld body1="mocap_right" body2="vx300s_right/gripper_link" solref="0.01 1" solimp=".25 .25 0.001" />
+        <weld body1="mocap_left" body2="vx300s_left/gripper_prop_link" solref="0.01 1" solimp=".25 .25 0.001" />
+        <weld body1="mocap_right" body2="vx300s_right/gripper_prop_link" solref="0.01 1" solimp=".25 .25 0.001" />
     </equality>
 
     <worldbody>
@@ -22,16 +22,18 @@
             <site pos="0 0 0" size="0.03 0.003 0.003" type="box" name="mocap_right_site3" rgba="1 0 0 1"/>
         </body>
 
-        <body name="box" pos="0.2 0.5 0.55">
+        <!-- <body name="box" pos="0.2 0.5 0.55">
             <joint name="red_box_joint" type="free" frictionloss="0.01" damping="0.1" armature="0.01" />
             <inertial pos="0 0 0.3" mass="0.05" diaginertia="0.002 0.002 0.002" />
             <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.08 0.02 0.02" type="box" name="red_box" rgba="1 0 0 1" />
-        </body>
+        </body> -->
 
-        <body name="pyramid" pos="0.2 0.5 0.55">
-            <joint name="red_pyramid_joint" type="free" frictionloss="0.01" damping="0.1" armature="0.01" />
-            <inertial pos="0 0 0" mass="0.05" diaginertia="0.002 0.002 0.002" />
-            <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.1 0.1 0.1" type="mesh" mesh="pyramid_mesh" name="red_pyramid" rgba="1 1 0 1" />
+        <body name="box" pos="0.2 0.5 0.55">
+            <joint name="red_box_joint" type="free" frictionloss="0.01" damping="0.1" armature="0.01" />
+            <inertial pos="0 0 0.3" mass="0.05" diaginertia="0.002 0.002 0.002" />
+            <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.08 0.02 0.02" type="box" name="horizontal_box" rgba="1 0 0 1" />
+            <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.08 0.02 0.02" type="box" name="vertical_box" rgba="1 0 0 1" euler="0 0 1.5708" />
+            <geom condim="4" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001" pos="0 0 0.2" size="0.02 0.02 0.08" type="box" name="depth_box" rgba="1 0 0 1" />
         </body>
 
     </worldbody>
@@ -47,6 +49,6 @@
     <!-- wenn die Pyramide entfernt wird sollte ich qpos wieder reduzieren ansonsten drohen fehler -->
 
     <keyframe>
-        <key qpos="0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0.2 0.5 0.05 1 0 0 0 0.2 0.5 0.05 1 0 0 0"/>
+        <key qpos="0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0 -0.96 1.16 0 -0.3 0 0.024 -0.024  0.2 0.5 0.05 1 0 0 0"/>
     </keyframe>
 </mujoco>

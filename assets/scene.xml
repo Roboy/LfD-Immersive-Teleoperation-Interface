@@ -23,7 +23,7 @@
             <geom group="1" mesh="base_mesh" pos="0 0 0" type="mesh" conaffinity="1" contype="1" name="base_mesh" rgba="0.2 0.2 0.2 1" />
         </body> -->
 
-        <body name="table" pos="0 .6 0.1">
+        <body name="table" pos="0 .6 0.099">
             <geom group="1" mesh="tabletop" pos="0 0 0" type="mesh" conaffinity="1" contype="1" name="table" rgba="0.2 0.2 0.2 1" />
         </body>
         <body name="midair" pos="0 .6 0.2">
