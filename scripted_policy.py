@@ -47,15 +47,12 @@ class BasePolicy:
         return trajectory
 
     def interpolate_call(self, curr_pose, rel_move):
-        combination = 1
-        if combination == 1:
-            corrected_position = np.array([
-                rel_move["position"][0],  # +x
-                rel_move["position"][1],  # +y
-                rel_move["position"][2]   # +z
-            ])
-        # (weitere Kombinationen entfernt, um Platz zu sparen)
-        new_position = curr_pose[:3] + corrected_position
+        converted_position = np.array([
+            rel_move["position"][0],  # +x
+            rel_move["position"][1],  # +y
+            rel_move["position"][2]   # +z
+        ])
+        new_position = curr_pose[:3] + converted_position
         new_orientation = R.from_quat(curr_pose[3:7]) * R.from_quat(rel_move["orientation"])
         return new_position, new_orientation.as_quat()
 
