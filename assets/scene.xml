@@ -36,7 +36,7 @@
         <camera name="right_eye" pos="0.03 0.5 1.12" fovy="78" mode="track" target="table" quat="1 0 0 0"/>
         <!--    <camera name="right_eye" pos="0.03 0.5 1.12" fovy="78" mode="targetbody" target="table"/>/>-->
         <camera name="top" pos="0 -0.2 0.3" fovy="78" mode="targetbody" target="table"/>
-        <camera name="angle" pos="0 0 0.6" fovy="78" mode="targetbody" target="table"/>
+        <camera name="angle" pos="0.03 0.5 1.12" fovy="78" mode="targetbody" target="table"/>
         <camera name="front_close" pos="0 0.2 0.4" fovy="78" mode="targetbody" target="vx300s_left/camera_focus"/>
 
     </worldbody>

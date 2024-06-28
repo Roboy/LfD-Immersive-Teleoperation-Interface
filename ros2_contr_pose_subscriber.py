@@ -21,11 +21,11 @@ class PoseSubscriber(Node):
             relative_position = current_pose[:3] - self.prev_pose[:3]
             current_orientation = R.from_quat(current_pose[3:])
             prev_orientation = R.from_quat(self.prev_pose[3:])
-            relative_orientation = current_orientation * prev_orientation.inv()
+            relative_orientation = (current_orientation * prev_orientation.inv()).as_quat()
             self.latest_relative_position = relative_position
-            self.latest_relative_orientation = relative_orientation.as_quat()
+            self.latest_relative_orientation = relative_orientation
             self.relative_trajectory.append({
-                "position": relative_position,
-                "orientation": relative_orientation.as_quat()
+                "position": self.latest_relative_position,
+                "orientation": self.latest_relative_orientation
             })
             self.prev_pose = current_pose

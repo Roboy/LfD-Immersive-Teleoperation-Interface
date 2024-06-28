@@ -23,6 +23,8 @@ class BasePolicy:
         self.init_right_pose = None
         self.left_trajectory = None
         self.right_trajectory = None
+        self.left_rel_move = None
+        self.right_rel_move = None
 
     @staticmethod
     def interpolate(waypoints, t):
@@ -80,17 +82,17 @@ class BasePolicy:
             self.curr_right_waypoint = np.concatenate([self.init_right_pose, [0]])  # Assuming initial gripper state is 0
 
         if self.left_subscriber.latest_relative_position is not None:
-            left_rel_move = {
+            self.left_rel_move = {
                 "position": self.left_subscriber.latest_relative_position,
                 "orientation": self.left_subscriber.latest_relative_orientation
             }
 
             # This can be moved in order to diable the orientation
-            #left_rel_move["orientation"][0] = 0 # x
-            #left_rel_move["orientation"][1] = 0 # y
-            #left_rel_move["orientation"][2] = 0 # z
+            self.left_rel_move["orientation"][0] = 0 # x
+            #self.right_rel_move["orientation"][1] = 0 # y
+            self.left_rel_move["orientation"][2] = 0 # z
 
-            left_xyz, left_quat = self.interpolate_call(self.curr_left_waypoint, left_rel_move)
+            left_xyz, left_quat = self.interpolate_call(self.curr_left_waypoint, self.left_rel_move)
             left_gripper, _ = self.get_gripper_state()
             self.curr_left_waypoint = np.concatenate([left_xyz, left_quat, [left_gripper]])  # Update gripper state
             self.left_trajectory = self.plan_trajectory(self.curr_left_waypoint, self.curr_left_waypoint)
@@ -99,12 +101,16 @@ class BasePolicy:
             left_gripper = self.curr_left_waypoint[7]
 
         if self.right_subscriber.latest_relative_position is not None:
-            right_rel_move = {
+            self.right_rel_move = {
                 "position": self.right_subscriber.latest_relative_position,
                 "orientation": self.right_subscriber.latest_relative_orientation
             }
 
-            right_xyz, right_quat = self.interpolate_call(self.curr_right_waypoint, right_rel_move)
+            self.right_rel_move["orientation"][0] = 0 # x
+            #self.right_rel_move["orientation"][1] = 0 # y
+            self.right_rel_move["orientation"][2] = 0 # z
+
+            right_xyz, right_quat = self.interpolate_call(self.curr_right_waypoint, self.right_rel_move)
             _, right_gripper = self.get_gripper_state()
             self.curr_right_waypoint = np.concatenate([right_xyz, right_quat, [right_gripper]])  # Update gripper state
             self.right_trajectory = self.plan_trajectory(self.curr_right_waypoint, self.curr_right_waypoint)
