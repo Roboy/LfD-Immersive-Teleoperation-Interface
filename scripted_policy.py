@@ -87,11 +87,6 @@ class BasePolicy:
                 "orientation": self.left_subscriber.latest_relative_orientation
             }
 
-            # This can be moved in order to diable the orientation
-            self.left_rel_move["orientation"][0] = 0 # x
-            #self.right_rel_move["orientation"][1] = 0 # y
-            self.left_rel_move["orientation"][2] = 0 # z
-
             left_xyz, left_quat = self.interpolate_call(self.curr_left_waypoint, self.left_rel_move)
             left_gripper, _ = self.get_gripper_state()
             self.curr_left_waypoint = np.concatenate([left_xyz, left_quat, [left_gripper]])  # Update gripper state
@@ -105,10 +100,6 @@ class BasePolicy:
                 "position": self.right_subscriber.latest_relative_position,
                 "orientation": self.right_subscriber.latest_relative_orientation
             }
-
-            self.right_rel_move["orientation"][0] = 0 # x
-            #self.right_rel_move["orientation"][1] = 0 # y
-            self.right_rel_move["orientation"][2] = 0 # z
 
             right_xyz, right_quat = self.interpolate_call(self.curr_right_waypoint, self.right_rel_move)
             _, right_gripper = self.get_gripper_state()

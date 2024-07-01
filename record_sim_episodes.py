@@ -121,7 +121,8 @@ def main(args):
             print(f"Error initializing policy: {e}")
             return
         
-
+        shared_state.left_pose_subscriber.restart()
+        shared_state.right_pose_subscriber.restart()
         print(f'Starting episode {successful_episodes + 1}')
         success = False
 

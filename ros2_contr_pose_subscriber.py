@@ -12,6 +12,11 @@ class PoseSubscriber(Node):
         self.latest_relative_position = None
         self.latest_relative_orientation = None
 
+    def restart(self):
+        self.prev_pose = None
+        self.latest_relative_position = None
+        self.latest_relative_orientation = None
+
     def pose_callback(self, msg):
         current_pose = np.array([msg.position.x, msg.position.y, msg.position.z,
                                  msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
@@ -22,6 +27,10 @@ class PoseSubscriber(Node):
             current_orientation = R.from_quat(current_pose[3:])
             prev_orientation = R.from_quat(self.prev_pose[3:])
             relative_orientation = (current_orientation * prev_orientation.inv()).as_quat()
+            relative_orientation[0] = 0
+            relative_orientation[1] = 0
+            relative_orientation[2] = 0
+
             self.latest_relative_position = relative_position
             self.latest_relative_orientation = relative_orientation
             self.relative_trajectory.append({
