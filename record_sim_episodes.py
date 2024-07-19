@@ -15,7 +15,6 @@ from ros2_sim_img_publisher import CameraNode
 from ros2_contr_pose_subscriber import PoseSubscriber
 from ros2_joint_state_subscriber import JointStateSubscriber
 
-
 import IPython
 e = IPython.embed
 
@@ -110,108 +109,103 @@ def main(args):
         except ValueError:
             print(f"Invalid input. Please enter a number between 0 and {required_num_episodes}.")
 
-
     episode_len = SIM_TASK_CONFIGS[task_name]['episode_len']
     camera_names = SIM_TASK_CONFIGS[task_name]['camera_names']
 
-    while successful_episodes < required_num_episodes:
-        try:
-            policy = BasePolicy(shared_state.left_pose_subscriber, shared_state.right_pose_subscriber, shared_state.joint_subscriber, inject_noise)
-        except Exception as e:
-            print(f"Error initializing policy: {e}")
-            return
-        
-        shared_state.left_pose_subscriber.restart()
-        shared_state.right_pose_subscriber.restart()
-        print(f'Starting episode {successful_episodes + 1}')
-        success = False
+    try:
+        policy = BasePolicy(shared_state.left_pose_subscriber, shared_state.right_pose_subscriber, shared_state.joint_subscriber, inject_noise)
+    except Exception as e:
+        print(f"Error initializing policy: {e}")
+        return
+    
+    shared_state.left_pose_subscriber.restart()
+    shared_state.right_pose_subscriber.restart()
+    print(f'Starting episode {successful_episodes + 1}')
+    success = False
 
-        while not success:
-            print('Rolling out EE space scripted policy')
-            # setup the environment
-            env = make_ee_sim_env(task_name)
-            ts = env.reset(shared_state.headset_subscriber)
+    while not success:
+        print('Rolling out EE space scripted policy')
+        # setup the environment
+        env = make_ee_sim_env(task_name)
+        ts = env.reset(shared_state.headset_subscriber)
 
-            episode = [ts]
-            policy = BasePolicy(shared_state.left_pose_subscriber, shared_state.right_pose_subscriber, shared_state.joint_subscriber, inject_noise)
+        episode = [ts]
+        policy = BasePolicy(shared_state.left_pose_subscriber, shared_state.right_pose_subscriber, shared_state.joint_subscriber, inject_noise)
 
-            # setup plotting
+        # setup plotting
+        if onscreen_render:
+            fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))
+            first_plt_img = ax.imshow(ts.observation['images'][first_cam])
+            sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
+            plt.ion()
+
+        for step in range(episode_len):
+            action = policy(ts)
+            ts = env.step(action, shared_state.headset_subscriber)
+            episode.append(ts)
             if onscreen_render:
-                fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))
-                first_plt_img = ax.imshow(ts.observation['images'][first_cam])
-                sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
-                plt.ion()
+                first_plt_img.set_data(ts.observation['images'][first_cam])
+                sec_plt_img.set_data(ts.observation['images'][second_cam])
+                shared_state.camera_publisher.first_plt_img = ts.observation['images'][first_cam]
+                shared_state.camera_publisher.sec_plt_img = ts.observation['images'][second_cam]
+                plt.pause(0.002)
+        plt.close()
 
-            for step in range(episode_len):
-                action = policy(ts)
-                ts = env.step(action, shared_state.headset_subscriber)
-                episode.append(ts)
-                if onscreen_render:
-                    first_plt_img.set_data(ts.observation['images'][first_cam])
-                    sec_plt_img.set_data(ts.observation['images'][second_cam])
-                    shared_state.camera_publisher.first_plt_img = ts.observation['images'][first_cam]
-                    shared_state.camera_publisher.sec_plt_img = ts.observation['images'][second_cam]
-                    plt.pause(0.002)
-            plt.close()
+        episode_return = np.sum([ts.reward for ts in episode[1:]])
+        episode_max_reward = np.max([ts.reward for ts in episode[1:]])
+        if episode_max_reward == env.task.max_reward:
+            print(f"Episode Successful, {episode_return=}")
+        else:
+            print(f"Episode Failed")
 
-            episode_return = np.sum([ts.reward for ts in episode[1:]])
-            episode_max_reward = np.max([ts.reward for ts in episode[1:]])
-            if episode_max_reward == env.task.max_reward:
-                print(f"Episode Successful, {episode_return=}")
-            else:
-                print(f"Episode Failed")
+        joint_traj = [ts.observation['qpos'] for ts in episode]
+        gripper_ctrl_traj = [ts.observation['gripper_ctrl'] for ts in episode]
+        for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
+            left_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
+            right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[2])
+            joint[6] = left_ctrl
+            joint[6+7] = right_ctrl
 
-            joint_traj = [ts.observation['qpos'] for ts in episode]
-            gripper_ctrl_traj = [ts.observation['gripper_ctrl'] for ts in episode]
-            for joint, ctrl in zip(joint_traj, gripper_ctrl_traj):
-                left_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[0])
-                right_ctrl = PUPPET_GRIPPER_POSITION_NORMALIZE_FN(ctrl[2])
-                joint[6] = left_ctrl
-                joint[6+7] = right_ctrl
+        subtask_info = episode[0].observation['env_state'].copy()
 
-            subtask_info = episode[0].observation['env_state'].copy()
+        del env
+        del episode
+        del policy
 
-            del env
-            del episode
-            del policy
+        print('Replaying joint commands')
+        env = make_sim_env(task_name)
+        BOX_POSE[0] = subtask_info
+        ts = env.reset(shared_state.headset_subscriber)
 
-            print('Replaying joint commands')
-            env = make_sim_env(task_name)
-            BOX_POSE[0] = subtask_info
-            ts = env.reset(shared_state.headset_subscriber)
-
-            episode_replay = [ts]
+        episode_replay = [ts]
+        if onscreen_render:
+            fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))
+            first_plt_img = ax.imshow(ts.observation['images'][first_cam])
+            sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
+            plt.ion()
+        for t in range(len(joint_traj)):
+            action = joint_traj[t]
+            ts = env.step(action, shared_state.headset_subscriber)
+            episode_replay.append(ts)
             if onscreen_render:
-                fig, (ax, bx) = plt.subplots(1, 2, figsize=(12, 6))
-                first_plt_img = ax.imshow(ts.observation['images'][first_cam])
-                sec_plt_img = bx.imshow(ts.observation['images'][second_cam])
-                plt.ion()
-            for t in range(len(joint_traj)):
-                action = joint_traj[t]
-                ts = env.step(action, shared_state.headset_subscriber)
-                episode_replay.append(ts)
-                if onscreen_render:
-                    first_plt_img.set_data(ts.observation['images'][first_cam])
-                    sec_plt_img.set_data(ts.observation['images'][second_cam])
-                    shared_state.camera_publisher.first_plt_img = ts.observation['images'][first_cam]
-                    shared_state.camera_publisher.sec_plt_img = ts.observation['images'][second_cam]
-                    plt.pause(0.002)
+                first_plt_img.set_data(ts.observation['images'][first_cam])
+                sec_plt_img.set_data(ts.observation['images'][second_cam])
+                shared_state.camera_publisher.first_plt_img = ts.observation['images'][first_cam]
+                shared_state.camera_publisher.sec_plt_img = ts.observation['images'][second_cam]
+                plt.pause(0.002)
 
-            episode_return = np.sum([ts.reward for ts in episode_replay[1:]])
-            episode_max_reward = np.max([ts.reward for ts in episode_replay[1:]])
-            if episode_max_reward == env.task.max_reward:
-                print(f"Episode Replay Successful, {episode_return=}")
-                success = True
-            else:
-                print(f"Episode Replay Failed")
+        episode_return = np.sum([ts.reward for ts in episode_replay[1:]])
+        episode_max_reward = np.max([ts.reward for ts in episode_replay[1:]])
+        if episode_max_reward == env.task.max_reward:
+            print(f"Episode Replay Successful, {episode_return=}")
+            success = True
+        else:
+            print(f"Episode Replay Failed")
 
-            plt.close()
+        plt.close()
 
-            user_input = input("Do you want to save this episode? (yes/no): ").strip().lower()
-            if user_input != 'yes':
-                success = False
-                continue
-
+        user_input = input("Do you want to save this episode? (yes/no): ").strip().lower()
+        if user_input == 'yes':
             data_dict = {
                 '/observations/qpos': [],
                 '/observations/qvel': [],
@@ -250,11 +244,9 @@ def main(args):
                     root[name][...] = array
             print(f'Saving: {time.time() - t0:.1f} secs\n')
             print("Number of successful episodes: " + str(successful_episodes))
-
-            successful_episodes += 1
+        break  # Terminate after one episode
 
     print(f'Saved to {dataset_dir}')
-    print(f'Success: {np.sum(success)} / {len(success)}')
 
     ros_kill()  # Signal the ROS node to shut down
     ros_thread.join()  # Wait for the ROS thread to terminate

@@ -19,6 +19,8 @@ from utils import sample_box_pose, sample_insertion_pose # robot functions
 from utils import compute_dict_mean, set_seed, detach_dict, calibrate_linear_vel, postprocess_base_action # helper functions
 from policy import ACTPolicy, CNNMLPPolicy, DiffusionPolicy
 from visualize_episodes import save_videos
+from dm_control import suite
+from dm_control.rl import control
 
 from detr.models.latent_model import Latent_Model_Transformer
 
@@ -154,7 +156,7 @@ def main(args):
         ckpt_names = [f'policy_last.ckpt']
         results = []
         for ckpt_name in ckpt_names:
-            success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True, num_rollouts=10)
+            success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50)
             # wandb.log({'success_rate': success_rate, 'avg_return': avg_return})
             results.append([ckpt_name, success_rate, avg_return])
 
@@ -458,9 +460,22 @@ def eval_bc(config, ckpt_name, save_episode=True, num_rollouts=50):
                 ### step the environment
                 time5 = time.time()
                 if real_robot:
-                    ts = env.step(target_qpos, base_action)
+                    try:
+                        ts = env.step(target_qpos, base_action)
+                    except control.PhysicsError as e:
+                        print(f"PhysicsError encountered: {e}")
+                        print(f"Target positions: {target_qpos}")
+                        # Add more print statements as needed to debug the state
+                        raise
                 else:
-                    ts = env.step(target_qpos, None)
+                    try:
+                        ts = env.step(target_qpos, None)
+                    except control.PhysicsError as e:
+                        print(f"PhysicsError encountered: {e}")
+                        print(f"Target positions: {target_qpos}")
+                        # Add more print statements as needed to debug the state
+                        raise
+
                 # print('step env: ', time.time() - time5)
 
                 ### for visualization

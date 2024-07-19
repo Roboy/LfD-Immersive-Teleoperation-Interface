@@ -27,10 +27,10 @@ SIM_TASK_CONFIGS = {
     },
 
     'sim_insertion_scripted': {
-        'dataset_dir': DATA_DIR + '/sim_insertion_scripted',
-        'num_episodes': 50,
+        'dataset_dir': DATA_DIR + '/learning',
+        'num_episodes': 100,
         'episode_len': 400,
-        'camera_names': ['top', 'left_wrist', 'right_wrist']
+        'camera_names': ['left_eye', 'right_eye']
     },
 
     'sim_insertion_human': {

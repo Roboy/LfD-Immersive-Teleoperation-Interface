@@ -5,7 +5,7 @@ from typing import Callable, Union
 import math
 from collections import OrderedDict, deque
 from packaging.version import parse as parse_version
-
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,6 +20,11 @@ import robomimic.utils.torch_utils as TorchUtils
 import robomimic.utils.obs_utils as ObsUtils
 
 from robomimic.algo import register_algo_factory_func, PolicyAlgo
+
+import random
+import robomimic.utils.torch_utils as TorchUtils
+import robomimic.utils.tensor_utils as TensorUtils
+import robomimic.utils.obs_utils as ObsUtils
 
 @register_algo_factory_func("diffusion_policy")
 def algo_config_to_class(algo_config):
@@ -46,6 +51,9 @@ class DiffusionPolicyUNet(PolicyAlgo):
         """
         Creates networks and places them into @self.nets.
         """
+        if self.algo_config.language_conditioned:
+            self.obs_shapes["lang_emb"] = [768] # clip is 768-dim embedding
+
         # set up different observation groups for @MIMO_MLP
         observation_group_shapes = OrderedDict()
         observation_group_shapes["obs"] = OrderedDict(self.obs_shapes)
@@ -332,7 +340,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
         for k in self.obs_shapes:
             # first two dimensions should be [B, T] for inputs
             assert inputs['obs'][k].ndim - 2 == len(self.obs_shapes[k])
-        obs_features = TensorUtils.time_distributed(inputs, self.nets['policy']['obs_encoder'], inputs_as_kwargs=True)
+        obs_features = TensorUtils.time_distributed(inputs, nets['policy']['obs_encoder'], inputs_as_kwargs=True)
         assert obs_features.ndim == 3  # [B, T, D]
         B = obs_features.shape[0]
 
@@ -388,7 +396,10 @@ class DiffusionPolicyUNet(PolicyAlgo):
         self.nets.load_state_dict(model_dict["nets"])
         if model_dict.get("ema", None) is not None:
             self.ema.averaged_model.load_state_dict(model_dict["ema"])
-        
+
+    
+            
+            
 
 # =================== Vision Encoder Utils =====================
 def replace_submodules(

@@ -14,7 +14,6 @@ from dm_control.rl import control
 from dm_control.suite import base
 import threading
 
-
 import IPython
 e = IPython.embed
 

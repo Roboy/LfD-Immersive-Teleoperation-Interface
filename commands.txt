@@ -89,6 +89,12 @@ CUDA_VISIBLE_DEVICES=0 python3 imitate_episodes.py \
 --batch_size 32 --lr 1e-5 --seed 0 \
 --num_steps 100000 --eval_every 2000 --validate_every 2000 --save_every 2000
 
+NOTE JUSTIN: Terminal command in history:
+python3 imitate_episodes.py --task_name sim_transfer_cube_scripted 
+--ckpt_dir /home/justin/Desktop/sim_transfer_cube_scripted --policy_class Diffusion 
+--chunk_size 16 --batch_size 32 --lr 1e-4 --seed 0 --num_steps 1000 
+--eval_every 200 --validate_every 200 --save_every 200 --onscreen_render
+
 
 conda activate mobile
 export MUJOCO_GL=egl
